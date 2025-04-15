@@ -45,7 +45,6 @@ public class Database {
         public static Header read(File file) throws FileNotFoundException, IOException {
             try (var os = new DataInputStream(new FileInputStream(file))) {
                 var header = new Header();
-                header.magicNumber = new byte[3];
                 os.read(header.magicNumber);
                 header.tag = os.readByte();
                 header.version = os.readShort();
