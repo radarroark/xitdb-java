@@ -43,13 +43,13 @@ public class Database {
         }
     
         public static Header read(File file) throws FileNotFoundException, IOException {
-            try (var os = new DataInputStream(new FileInputStream(file))) {
+            try (var is = new DataInputStream(new FileInputStream(file))) {
                 var header = new Header();
-                os.read(header.magicNumber);
-                header.tag = os.readByte();
-                header.version = os.readShort();
-                header.hashSize = os.readShort();
-                header.hashId = os.readInt();
+                is.read(header.magicNumber);
+                header.tag = is.readByte();
+                header.version = is.readShort();
+                header.hashSize = is.readShort();
+                header.hashId = is.readInt();
                 return header;
             }
         }
