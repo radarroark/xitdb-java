@@ -33,7 +33,7 @@ public class Database {
         byte[] magicNumber = "xit".getBytes();
     
         public ByteBuffer getBytes() {
-            var buffer = ByteBuffer.allocate(96);
+            var buffer = ByteBuffer.allocate(12);
             buffer.put(this.magicNumber);
             buffer.put(this.tag);
             buffer.putShort(this.version);
