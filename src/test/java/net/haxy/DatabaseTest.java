@@ -17,19 +17,11 @@ class DatabaseTest {
 
         var db = new Database(file);
 
-        try (var os = new DataInputStream(new FileInputStream(db.file))) {
-            var magicNumber = new byte[3];
-            os.read(magicNumber);
-            var tag = os.readByte();
-            var version = os.readShort();
-            var hashSize = os.readShort();
-            var hashId = os.readInt();
-
-            assertEquals("xit", new String(magicNumber));
-            assertEquals(0, tag);
-            assertEquals(0, version);
-            assertEquals(20, hashSize);
-            assertEquals(0, hashId);
-        }
+        var header = Database.Header.read(file);
+        assertEquals("xit", new String(header.magicNumber));
+        assertEquals(0, header.tag);
+        assertEquals(0, header.version);
+        assertEquals(20, header.hashSize);
+        assertEquals(0, header.hashId);
     }
 }
