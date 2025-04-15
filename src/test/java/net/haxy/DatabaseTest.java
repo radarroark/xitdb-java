@@ -7,9 +7,7 @@ import net.haxy.Database.Header.InvalidVersionException;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.io.DataInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 
 class DatabaseTest {
