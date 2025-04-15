@@ -9,28 +9,33 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import net.haxy.Database.Header.InvalidDatabaseException;
+import net.haxy.Database.Header.InvalidVersionException;
+
 public class Database {
     File file;
     Header header;
 
-    public Database(File file) throws IOException {
+    public Database(File file) throws IOException, InvalidDatabaseException, InvalidVersionException {
         this.file = file;
 
         if (file.length() == 0) {
             this.header = this.writeHeader();
         } else {
             this.header = Header.read(this.file);
+            this.header.validate();
         }
     }
 
     public static final short VERSION = 0;
+    public static final byte[] MAGIC_NUMBER = "xit".getBytes();
 
     public static class Header {
         int hashId = 0; // TODO: don't hardcode this
         short hashSize = 20; // TODO: don't hardcode this
         short version = VERSION;
         byte tag = 0;
-        byte[] magicNumber = "xit".getBytes();
+        byte[] magicNumber = MAGIC_NUMBER;
     
         public ByteBuffer getBytes() {
             var buffer = ByteBuffer.allocate(12);
@@ -53,6 +58,18 @@ public class Database {
                 return header;
             }
         }
+
+        public void validate() throws InvalidDatabaseException, InvalidVersionException {
+            if (!this.magicNumber.equals(MAGIC_NUMBER)) {
+                throw new InvalidDatabaseException();
+            }
+            if (this.version > VERSION) {
+                throw new InvalidVersionException();
+            }
+        }
+
+        public class InvalidDatabaseException extends Exception {}
+        public class InvalidVersionException extends Exception {}
     }
 
     private Header writeHeader() throws IOException {
