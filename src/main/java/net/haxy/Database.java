@@ -1,7 +1,5 @@
 package net.haxy;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
@@ -12,6 +10,7 @@ public class Database {
     public Database(Core core, Options opts) throws Exception {
         this.core = core;
 
+        core.seek(0);
         if (core.length() == 0) {
             this.header = this.writeHeader(opts);
         } else {
@@ -43,15 +42,14 @@ public class Database {
         }
 
         public static Header read(Core core) throws Exception {
-            try (var is = new DataInputStream(core.getInputStream())) {
-                var magicNumber = new byte[3];
-                is.read(magicNumber);
-                var tag = is.readByte();
-                var version = is.readShort();
-                var hashSize = is.readShort();
-                var hashId = is.readInt();
-                return new Header(hashId, hashSize, version, tag, magicNumber);
-            }
+            var reader = core.getReader();
+            var magicNumber = new byte[3];
+            reader.readFully(magicNumber);
+            var tag = reader.readByte();
+            var version = reader.readShort();
+            var hashSize = reader.readShort();
+            var hashId = reader.readInt();
+            return new Header(hashId, hashSize, version, tag, magicNumber);
         }
 
         public void validate() throws InvalidDatabaseException, InvalidVersionException {
@@ -69,9 +67,8 @@ public class Database {
 
     private Header writeHeader(Options opts) throws Exception {
         var header = new Header(opts.hashId, opts.hashSize, VERSION, (byte)0, MAGIC_NUMBER);
-        try (var os = new DataOutputStream(this.core.getOutputStream())) {
-            os.write(header.getBytes().array());
-        }
+        var writer = this.core.getWriter();
+        writer.write(header.getBytes().array());
         return header;
     }
 }

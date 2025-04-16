@@ -1,12 +1,14 @@
 package net.haxy;
 
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.DataInput;
+import java.io.DataOutput;
 
 public interface Core {
-    public InputStream getInputStream() throws Exception;
+    public DataInput getReader();
 
-    public OutputStream getOutputStream() throws Exception;
+    public DataOutput getWriter();
 
-    public long length();
+    public long length() throws Exception;
+
+    public void seek(long pos) throws Exception;
 }

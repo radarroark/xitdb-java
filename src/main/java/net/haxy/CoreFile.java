@@ -1,32 +1,35 @@
 package net.haxy;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 
 public class CoreFile implements Core {
-    File file;
+    RandomAccessFile file;
 
-    public CoreFile(File file) {
+    public CoreFile(RandomAccessFile file) {
         this.file = file;
     }
 
     @Override
-    public InputStream getInputStream() throws FileNotFoundException {
-        return new FileInputStream(this.file);
+    public DataInput getReader() {
+        return this.file;
     }
 
     @Override
-    public OutputStream getOutputStream() throws FileNotFoundException {
-        return new FileOutputStream(this.file);
+    public DataOutput getWriter() {
+        return this.file;
     }
 
     @Override
-    public long length() {
+    public long length() throws IOException {
         return this.file.length();
+    }
+
+    @Override
+    public void seek(long pos) throws IOException {
+        this.file.seek(pos);
     }
     
 }

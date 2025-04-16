@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.File;
+import java.io.RandomAccessFile;
 
 class DatabaseTest {
     @Test
@@ -12,10 +13,11 @@ class DatabaseTest {
         var file = File.createTempFile("database", "");
         file.deleteOnExit();
 
-        var core = new CoreFile(file);
-        var opts = new Database.Options(0, (short)20);
-
-        testLowLevelApi(core, opts);
+        try (var raf = new RandomAccessFile(file, "rw")) {
+            var core = new CoreFile(raf);
+            var opts = new Database.Options(0, (short)20);
+            testLowLevelApi(core, opts);
+        }
     }
 
     void testLowLevelApi(Core core, Database.Options opts) throws Exception {
