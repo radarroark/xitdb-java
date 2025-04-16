@@ -2,28 +2,20 @@ package net.haxy;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-import net.haxy.Database.Header.InvalidDatabaseException;
-import net.haxy.Database.Header.InvalidVersionException;
-
 public class Database {
-    File file;
+    Core core;
     Header header;
 
-    public Database(File file, Options opts) throws IOException, InvalidDatabaseException, InvalidVersionException {
-        this.file = file;
+    public Database(Core core, Options opts) throws Exception {
+        this.core = core;
 
-        if (file.length() == 0) {
+        if (core.length() == 0) {
             this.header = this.writeHeader(opts);
         } else {
-            this.header = Header.read(this.file);
+            this.header = Header.read(core);
             this.header.validate();
         }
     }
@@ -58,8 +50,8 @@ public class Database {
             return buffer;
         }
 
-        public static Header read(File file) throws FileNotFoundException, IOException {
-            try (var is = new DataInputStream(new FileInputStream(file))) {
+        public static Header read(Core core) throws Exception {
+            try (var is = new DataInputStream(core.getInputStream())) {
                 var magicNumber = new byte[3];
                 is.read(magicNumber);
                 var tag = is.readByte();
@@ -83,9 +75,9 @@ public class Database {
         public class InvalidVersionException extends Exception {}
     }
 
-    private Header writeHeader(Options opts) throws IOException {
+    private Header writeHeader(Options opts) throws Exception {
         var header = new Header(opts.hashId, opts.hashSize, VERSION, (byte)0, MAGIC_NUMBER);
-        try (var os = new DataOutputStream(new FileOutputStream(this.file))) {
+        try (var os = new DataOutputStream(this.core.getOutputStream())) {
             os.write(header.getBytes().array());
         }
         return header;
