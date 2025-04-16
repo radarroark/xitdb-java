@@ -27,7 +27,7 @@ class DatabaseTest {
         assertEquals("xit", new String(db.header.magicNumber()));
         assertEquals(0, db.header.tag());
         assertEquals(0, db.header.version());
-        assertEquals(20, db.header.hashSize());
-        assertEquals(0, db.header.hashId());
+        assertEquals(opts.hashSize(), db.header.hashSize());
+        assertEquals(opts.hashId(), db.header.hashId());
     }
 }
