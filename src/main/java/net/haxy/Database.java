@@ -20,15 +20,7 @@ public class Database {
         }
     }
 
-    public static record Options (int hashId, short hashSize) {
-        public Options() {
-            this(0, (short)0);
-        }
-
-        public Options(short hashSize) {
-            this(0, hashSize);
-        }
-    }
+    public static record Options (int hashId, short hashSize) {}
 
     public static final short VERSION = 0;
     public static final byte[] MAGIC_NUMBER = "xit".getBytes();

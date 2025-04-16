@@ -13,14 +13,13 @@ class DatabaseTest {
         file.deleteOnExit();
 
         var core = new CoreFile(file);
-
-        final short hashSize = 20;
+        var opts = new Database.Options(0, (short)20);
 
         // create db
-        new Database(core, new Database.Options(hashSize));
+        new Database(core, opts);
 
         // read db
-        var db = new Database(core, new Database.Options(hashSize));
+        var db = new Database(core, opts);
         assertEquals("xit", new String(db.header.magicNumber()));
         assertEquals(0, db.header.tag());
         assertEquals(0, db.header.version());
