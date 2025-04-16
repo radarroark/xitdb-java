@@ -2,6 +2,9 @@ package net.haxy;
 
 import org.junit.jupiter.api.Test;
 
+import net.haxy.Database.Header.InvalidDatabaseException;
+import net.haxy.Database.Header.InvalidVersionException;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.File;
@@ -21,15 +24,29 @@ class DatabaseTest {
     }
 
     void testLowLevelApi(Core core, Database.Options opts) throws Exception {
-        // create db
-        new Database(core, opts);
+        // open and re-open database
+        {
+            // make empty database
+            core.setLength(0);
+            new Database(core, opts);
 
-        // read db
-        var db = new Database(core, opts);
-        assertEquals("xit", new String(db.header.magicNumber()));
-        assertEquals(0, db.header.tag());
-        assertEquals(0, db.header.version());
-        assertEquals(opts.hashSize(), db.header.hashSize());
-        assertEquals(opts.hashId(), db.header.hashId());
+            // re-open without error
+            var db = new Database(core, opts);
+            var writer = db.core.getWriter();
+            db.core.seek(0);
+            writer.writeByte('g');
+
+            // re-open with error
+            assertThrows(InvalidDatabaseException.class, () -> new Database(core, opts));
+
+            // modify the version
+            db.core.seek(0);
+            writer.writeByte('x');
+            db.core.seek(4);
+            writer.writeShort(Database.VERSION + 1);
+
+            // re-open with error
+            assertThrows(InvalidVersionException.class, () -> new Database(core, opts));
+        }
     }
 }

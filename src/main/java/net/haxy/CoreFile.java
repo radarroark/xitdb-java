@@ -31,5 +31,10 @@ public class CoreFile implements Core {
     public void seek(long pos) throws IOException {
         this.file.seek(pos);
     }
+
+    @Override
+    public void setLength(long len) throws Exception {
+        this.file.setLength(len);
+    }
     
 }
