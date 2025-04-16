@@ -1,5 +1,6 @@
 package net.haxy;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
@@ -41,7 +42,7 @@ public class Database {
             return buffer;
         }
 
-        public static Header read(Core core) throws Exception {
+        public static Header read(Core core) throws IOException {
             var reader = core.getReader();
             var magicNumber = new byte[3];
             reader.readFully(magicNumber);
@@ -65,7 +66,7 @@ public class Database {
         public class InvalidVersionException extends Exception {}
     }
 
-    private Header writeHeader(Options opts) throws Exception {
+    private Header writeHeader(Options opts) throws IOException {
         var header = new Header(opts.hashId, opts.hashSize, VERSION, (byte)0, MAGIC_NUMBER);
         var writer = this.core.getWriter();
         writer.write(header.getBytes().array());
