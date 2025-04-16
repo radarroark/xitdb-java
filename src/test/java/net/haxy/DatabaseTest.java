@@ -16,11 +16,13 @@ class DatabaseTest {
         var file = File.createTempFile("database", "");
         file.deleteOnExit();
 
+        final short hashSize = 20;
+
         // create db
-        new Database(file);
+        new Database(file, new Database.Options(hashSize));
 
         // read db
-        var db = new Database(file);
+        var db = new Database(file, new Database.Options(hashSize));
         assertEquals("xit", new String(db.header.magicNumber));
         assertEquals(0, db.header.tag);
         assertEquals(0, db.header.version);

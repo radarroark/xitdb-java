@@ -16,14 +16,26 @@ public class Database {
     File file;
     Header header;
 
-    public Database(File file) throws IOException, InvalidDatabaseException, InvalidVersionException {
+    public Database(File file, Options opts) throws IOException, InvalidDatabaseException, InvalidVersionException {
         this.file = file;
 
         if (file.length() == 0) {
-            this.header = this.writeHeader();
+            this.header = this.writeHeader(opts);
         } else {
             this.header = Header.read(this.file);
             this.header.validate();
+        }
+    }
+
+    public static class Options {
+        int hashId = 0;
+        short hashSize = 0;
+
+        public Options() {
+        }
+
+        public Options(short hashSize) {
+            this.hashSize = hashSize;
         }
     }
 
@@ -31,11 +43,16 @@ public class Database {
     public static final byte[] MAGIC_NUMBER = "xit".getBytes();
 
     public static class Header {
-        int hashId = 0; // TODO: don't hardcode this
-        short hashSize = 20; // TODO: don't hardcode this
+        int hashId = 0;
+        short hashSize = 0;
         short version = VERSION;
         byte tag = 0;
         byte[] magicNumber = MAGIC_NUMBER;
+
+        public Header(Options opts) {
+            this.hashId = opts.hashId;
+            this.hashSize = opts.hashSize;
+        }
     
         public ByteBuffer getBytes() {
             var buffer = ByteBuffer.allocate(12);
@@ -49,7 +66,7 @@ public class Database {
     
         public static Header read(File file) throws FileNotFoundException, IOException {
             try (var is = new DataInputStream(new FileInputStream(file))) {
-                var header = new Header();
+                var header = new Header(new Options());
                 is.read(header.magicNumber);
                 header.tag = is.readByte();
                 header.version = is.readShort();
@@ -72,8 +89,8 @@ public class Database {
         public class InvalidVersionException extends Exception {}
     }
 
-    private Header writeHeader() throws IOException {
-        var header = new Header();
+    private Header writeHeader(Options opts) throws IOException {
+        var header = new Header(opts);
         try (var os = new DataOutputStream(new FileOutputStream(this.file))) {
             os.write(header.getBytes().array());
         }
