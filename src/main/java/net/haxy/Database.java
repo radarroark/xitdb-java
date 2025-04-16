@@ -8,6 +8,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 import net.haxy.Database.Header.InvalidDatabaseException;
 import net.haxy.Database.Header.InvalidVersionException;
@@ -27,33 +28,26 @@ public class Database {
         }
     }
 
-    public static class Options {
-        int hashId = 0;
-        short hashSize = 0;
-
+    public static record Options (int hashId, short hashSize) {
         public Options() {
+            this(0, (short)0);
         }
 
         public Options(short hashSize) {
-            this.hashSize = hashSize;
+            this(0, hashSize);
         }
     }
 
     public static final short VERSION = 0;
     public static final byte[] MAGIC_NUMBER = "xit".getBytes();
 
-    public static class Header {
-        int hashId = 0;
-        short hashSize = 0;
-        short version = VERSION;
-        byte tag = 0;
-        byte[] magicNumber = MAGIC_NUMBER;
-
-        public Header(Options opts) {
-            this.hashId = opts.hashId;
-            this.hashSize = opts.hashSize;
-        }
-    
+    public static record Header (
+        int hashId,
+        short hashSize,
+        short version,
+        byte tag,
+        byte[] magicNumber
+    ) {
         public ByteBuffer getBytes() {
             var buffer = ByteBuffer.allocate(12);
             buffer.put(this.magicNumber);
@@ -63,21 +57,21 @@ public class Database {
             buffer.putInt(this.hashId);
             return buffer;
         }
-    
+
         public static Header read(File file) throws FileNotFoundException, IOException {
             try (var is = new DataInputStream(new FileInputStream(file))) {
-                var header = new Header(new Options());
-                is.read(header.magicNumber);
-                header.tag = is.readByte();
-                header.version = is.readShort();
-                header.hashSize = is.readShort();
-                header.hashId = is.readInt();
-                return header;
+                var magicNumber = new byte[3];
+                is.read(magicNumber);
+                var tag = is.readByte();
+                var version = is.readShort();
+                var hashSize = is.readShort();
+                var hashId = is.readInt();
+                return new Header(hashId, hashSize, version, tag, magicNumber);
             }
         }
 
         public void validate() throws InvalidDatabaseException, InvalidVersionException {
-            if (!this.magicNumber.equals(MAGIC_NUMBER)) {
+            if (!Arrays.equals(this.magicNumber, MAGIC_NUMBER)) {
                 throw new InvalidDatabaseException();
             }
             if (this.version > VERSION) {
@@ -90,7 +84,7 @@ public class Database {
     }
 
     private Header writeHeader(Options opts) throws IOException {
-        var header = new Header(opts);
+        var header = new Header(opts.hashId, opts.hashSize, VERSION, (byte)0, MAGIC_NUMBER);
         try (var os = new DataOutputStream(new FileOutputStream(this.file))) {
             os.write(header.getBytes().array());
         }
