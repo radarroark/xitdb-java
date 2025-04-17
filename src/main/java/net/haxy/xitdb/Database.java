@@ -100,6 +100,8 @@ public class Database {
     }
 
     public static record Slot(long value, Tag tag, boolean full) {
+        public static int length = 9;
+
         public Slot() {
             this(0, Tag.NONE, false);
         }
@@ -112,7 +114,14 @@ public class Database {
             return new Slot(this.value, tag, this.full);
         }
 
-        public static int length = 9;
+        public byte[] getBytes() {
+            var buffer = ByteBuffer.allocate(length);
+            var tagInt = this.full ? 1 : 0;
+            tagInt = (tagInt << 7) | this.tag.ordinal();
+            buffer.put((byte)tagInt);
+            buffer.putLong(this.value);
+            return buffer.array();
+        }
     }
 
     public static record SlotPointer(Long position, Slot slot) {
@@ -160,6 +169,17 @@ public class Database {
             buffer.putLong(this.ptr);
             return buffer.array();
         }
+
+        public static ArrayListHeader fromBytes(byte[] bytes) {
+            var buffer = ByteBuffer.wrap(bytes);
+            var size = buffer.getLong();
+            var ptr = buffer.getLong();
+            return new ArrayListHeader(ptr, size);
+        }
+
+        public ArrayListHeader withPtr(long ptr) {
+            return new ArrayListHeader(ptr, this.size);
+        }
     }
     public static record TopLevelArrayListHeader(long fileSize, ArrayListHeader parent) {
         public static int length = 8 + ArrayListHeader.length;
@@ -177,6 +197,9 @@ public class Database {
 
     public class KeyNotFound extends Exception {}
     public class WriteNotAllowed extends Exception {}
+    public class UnexpectedTag extends Exception {}
+    public class CursorNotWriteable extends Exception {}
+    public class ExpectedTxStart extends Exception {}
 
     public WriteCursor rootCursor() {
         return new WriteCursor(new SlotPointer(null, new Slot(DATABASE_START, this.header.tag)), this);
@@ -236,7 +259,64 @@ public class Database {
                         return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
                     }
 
-                    return slotPtr;
+                    if (slotPtr.position == null) throw new CursorNotWriteable();
+                    long position = slotPtr.position;
+
+                    switch (slotPtr.slot.tag()) {
+                        case Tag.NONE -> {
+                            // if slot was empty, insert the new list
+                            var writer = this.core.getWriter();
+                            this.core.seek(this.core.length());
+                            var arrayListStart = this.core.length();
+                            var arrayListPtr = arrayListStart + ArrayListHeader.length;
+                            writer.write(new ArrayListHeader(
+                                arrayListPtr,
+                                0
+                            ).getBytes());
+                            writer.write(new byte[INDEX_BLOCK_SIZE]);
+                            // make slot point to list
+                            var nextSlotPtr = new SlotPointer(position, new Slot(arrayListStart, Tag.ARRAY_LIST));
+                            this.core.seek(position);
+                            writer.write(nextSlotPtr.slot.getBytes());
+                            return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
+                        }
+                        case Tag.ARRAY_LIST -> {
+                            var reader = this.core.getReader();
+                            var writer = this.core.getWriter();
+
+                            var arrayListStart = slotPtr.slot.value();
+
+                            // copy it to the end unless it was made in this transaction
+                            if (this.txStart != null) {
+                                if (arrayListStart < this.txStart) {
+                                    // read existing block
+                                    this.core.seek(arrayListStart);
+                                    var headerBytes = new byte[ArrayListHeader.length];
+                                    reader.readFully(headerBytes);
+                                    var header = ArrayListHeader.fromBytes(headerBytes);
+                                    this.core.seek(header.ptr);
+                                    var arrayListIndexBlock = new byte[INDEX_BLOCK_SIZE];
+                                    reader.readFully(arrayListIndexBlock);
+                                    // copy to the end
+                                    this.core.seek(this.core.length());
+                                    arrayListStart = this.core.length();
+                                    var nextArrayListPtr = arrayListStart + ArrayListHeader.length;
+                                    header = header.withPtr(nextArrayListPtr);
+                                    writer.write(header.getBytes());
+                                    writer.write(arrayListIndexBlock);
+                                }
+                            } else if (this.header.tag() == Tag.ARRAY_LIST) {
+                                throw new ExpectedTxStart();
+                            }
+
+                            // make slot point to list
+                            var nextSlotPtr = new SlotPointer(position, new Slot(arrayListStart, Tag.ARRAY_LIST));
+                            this.core.seek(position);
+                            writer.write(nextSlotPtr.slot.getBytes());
+                            return readSlotPointer(writeMode, Arrays.copyOfRange(path, 0, path.length), nextSlotPtr);
+                        }
+                        default -> throw new UnexpectedTag();
+                    }
                 }
             }
         } finally {
