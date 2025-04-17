@@ -20,13 +20,13 @@ public class Database {
         }
     }
 
-    public static record Options (int hashId, short hashSize) {}
+    public static record Options (HashId hashId, short hashSize) {}
 
     public static final short VERSION = 0;
     public static final byte[] MAGIC_NUMBER = "xit".getBytes();
 
     public static record Header (
-        int hashId,
+        HashId hashId,
         short hashSize,
         short version,
         byte tag,
@@ -38,7 +38,7 @@ public class Database {
             buffer.put(this.tag);
             buffer.putShort(this.version);
             buffer.putShort(this.hashSize);
-            buffer.putInt(this.hashId);
+            buffer.putInt(this.hashId.id);
             return buffer;
         }
 
@@ -50,7 +50,7 @@ public class Database {
             var version = reader.readShort();
             var hashSize = reader.readShort();
             var hashId = reader.readInt();
-            return new Header(hashId, hashSize, version, tag, magicNumber);
+            return new Header(new HashId(hashId), hashSize, version, tag, magicNumber);
         }
 
         public void validate() throws InvalidDatabaseException, InvalidVersionException {
@@ -64,6 +64,26 @@ public class Database {
 
         public class InvalidDatabaseException extends Exception {}
         public class InvalidVersionException extends Exception {}
+    }
+
+    public static record HashId(int id) {
+        public static HashId fromString(String hashIdName) {
+            var bytes = hashIdName.getBytes();
+            if (bytes.length != 4) {
+                throw new IllegalArgumentException();
+            }
+            var buffer = ByteBuffer.allocate(4);
+            buffer.put(bytes);
+            buffer.position(0);
+            int id = buffer.getInt();
+            return new HashId(id);
+        }
+
+        public String toString() {
+            var buffer = ByteBuffer.allocate(4);
+            buffer.putInt(this.id);
+            return new String(buffer.array());
+        }
     }
 
     private Header writeHeader(Options opts) throws IOException {

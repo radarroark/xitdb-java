@@ -18,7 +18,7 @@ class DatabaseTest {
 
         try (var raf = new RandomAccessFile(file, "rw")) {
             var core = new CoreFile(raf);
-            var opts = new Database.Options(0, (short)20);
+            var opts = new Database.Options(new Database.HashId(0), (short)20);
             testLowLevelApi(core, opts);
         }
     }
@@ -47,6 +47,19 @@ class DatabaseTest {
 
             // re-open with error
             assertThrows(InvalidVersionException.class, () -> new Database(core, opts));
+        }
+
+        // save hash id in header
+        {
+            var hashId = Database.HashId.fromString("sha1");
+            var optsWithHashId = new Database.Options(hashId, opts.hashSize());
+
+            // make empty database
+            core.setLength(0);
+            var db = new Database(core, optsWithHashId);
+
+            assertEquals(hashId.id(), db.header.hashId().id());
+            assertEquals("sha1", db.header.hashId().toString());
         }
     }
 }
