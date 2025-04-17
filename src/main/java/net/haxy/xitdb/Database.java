@@ -9,20 +9,6 @@ public class Database {
     Header header;
     Long txStart;
 
-    public Database(Core core, Options opts) throws Exception {
-        this.core = core;
-
-        core.seek(0);
-        if (core.length() == 0) {
-            this.header = this.writeHeader(opts);
-        } else {
-            this.header = Header.read(core);
-            this.header.validate();
-        }
-
-        this.txStart = null;
-    }
-
     public static record Options (HashId hashId, short hashSize) {}
 
     public static final short VERSION = 0;
@@ -201,9 +187,27 @@ public class Database {
     public class CursorNotWriteable extends Exception {}
     public class ExpectedTxStart extends Exception {}
 
+    // init
+
+    public Database(Core core, Options opts) throws Exception {
+        this.core = core;
+
+        core.seek(0);
+        if (core.length() == 0) {
+            this.header = this.writeHeader(opts);
+        } else {
+            this.header = Header.read(core);
+            this.header.validate();
+        }
+
+        this.txStart = null;
+    }
+
     public WriteCursor rootCursor() {
         return new WriteCursor(new SlotPointer(null, new Slot(DATABASE_START, this.header.tag)), this);
     }
+
+    // private
 
     private Header writeHeader(Options opts) throws IOException {
         var header = new Header(opts.hashId, opts.hashSize, VERSION, Tag.NONE, MAGIC_NUMBER);
