@@ -58,5 +58,15 @@ class DatabaseTest {
             assertEquals(hashId.id(), db.header.hashId().id());
             assertEquals("sha1", db.header.hashId().toString());
         }
+
+        // array_list of hash_maps
+        {
+            core.setLength(0);
+            var db = new Database(core, opts);
+            var rootCursor = db.rootCursor();
+            assertThrows(Database.WriteNotAllowed.class, () -> rootCursor.readPath(new Database.PathPart[]{
+                new Database.ArrayListInit()
+            }));
+        }
     }
 }
