@@ -129,15 +129,9 @@ public class Database {
         INT,
         FLOAT;
 
-        public static Tag valueOf(byte b) {
-            int i = 0;
-            for (Tag t : values()) {
-                if (i == b) {
-                    return t;
-                }
-                i += 1;
-            }
-            throw new IllegalArgumentException();
+        public static Tag valueOf(int n) {
+            if (n > Tag.values().length) throw new IllegalArgumentException();
+            return Tag.values()[n];
         }
     }
 
