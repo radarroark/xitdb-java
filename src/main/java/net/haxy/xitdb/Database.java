@@ -27,7 +27,7 @@ public class Database {
 
     public static final short VERSION = 0;
     public static final byte[] MAGIC_NUMBER = "xit".getBytes();
-    public static final int DATABASE_START = 12;
+    public static final int DATABASE_START = Header.length;
     public static final int BIT_COUNT = 4;
     public static final int SLOT_COUNT = 1 << BIT_COUNT;
     public static final int INDEX_BLOCK_SIZE = Slot.length * SLOT_COUNT;
@@ -39,8 +39,10 @@ public class Database {
         Tag tag,
         byte[] magicNumber
     ) {
+        public static int length = 12;
+
         public byte[] getBytes() {
-            var buffer = ByteBuffer.allocate(DATABASE_START);
+            var buffer = ByteBuffer.allocate(length);
             buffer.put(this.magicNumber);
             buffer.put((byte)this.tag.ordinal());
             buffer.putShort(this.version);
