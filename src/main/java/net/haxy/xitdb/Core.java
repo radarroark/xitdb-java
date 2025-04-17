@@ -1,4 +1,4 @@
-package net.haxy;
+package net.haxy.xitdb;
 
 import java.io.DataInput;
 import java.io.DataOutput;

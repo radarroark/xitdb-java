@@ -1,9 +1,6 @@
-package net.haxy;
+package net.haxy.xitdb;
 
 import org.junit.jupiter.api.Test;
-
-import net.haxy.Database.Header.InvalidDatabaseException;
-import net.haxy.Database.Header.InvalidVersionException;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -37,7 +34,7 @@ class DatabaseTest {
             writer.writeByte('g');
 
             // re-open with error
-            assertThrows(InvalidDatabaseException.class, () -> new Database(core, opts));
+            assertThrows(Database.Header.InvalidDatabaseException.class, () -> new Database(core, opts));
 
             // modify the version
             db.core.seek(0);
@@ -46,7 +43,7 @@ class DatabaseTest {
             writer.writeShort(Database.VERSION + 1);
 
             // re-open with error
-            assertThrows(InvalidVersionException.class, () -> new Database(core, opts));
+            assertThrows(Database.Header.InvalidVersionException.class, () -> new Database(core, opts));
         }
 
         // save hash id in header
