@@ -28,6 +28,9 @@ public class Database {
     public static final short VERSION = 0;
     public static final byte[] MAGIC_NUMBER = "xit".getBytes();
     public static final int DATABASE_START = 12;
+    public static final int BIT_COUNT = 4;
+    public static final int SLOT_COUNT = 1 << BIT_COUNT;
+    public static final int INDEX_BLOCK_SIZE = Slot.length * SLOT_COUNT;
 
     public static record Header (
         HashId hashId,
@@ -36,14 +39,14 @@ public class Database {
         Tag tag,
         byte[] magicNumber
     ) {
-        public ByteBuffer getBytes() {
+        public byte[] getBytes() {
             var buffer = ByteBuffer.allocate(DATABASE_START);
             buffer.put(this.magicNumber);
             buffer.put((byte)this.tag.ordinal());
             buffer.putShort(this.version);
             buffer.putShort(this.hashSize);
             buffer.putInt(this.hashId.id);
-            return buffer;
+            return buffer.array();
         }
 
         public static Header read(Core core) throws IOException {
@@ -64,6 +67,10 @@ public class Database {
             if (this.version > VERSION) {
                 throw new InvalidVersionException();
             }
+        }
+
+        public Header withTag(Tag tag) {
+            return new Header(this.hashId, this.hashSize, this.version, tag, this.magicNumber);
         }
 
         public class InvalidDatabaseException extends Exception {}
@@ -98,9 +105,19 @@ public class Database {
         public Slot(long value, Tag tag) {
             this(value, tag, false);
         }
+
+        public Slot withTag(Tag tag) {
+            return new Slot(this.value, tag, this.full);
+        }
+
+        public static int length = 9;
     }
 
-    public static record SlotPointer(Long position, Slot slot) {}
+    public static record SlotPointer(Long position, Slot slot) {
+        public SlotPointer withSlot(Slot slot) {
+            return new SlotPointer(this.position, slot);
+        }
+    }
 
     public static enum Tag {
         NONE,
@@ -132,6 +149,27 @@ public class Database {
         READ_WRITE
     }
 
+    public static record ArrayListHeader(long ptr, long size) {
+        public static int length = 16;
+
+        public byte[] getBytes() {
+            var buffer = ByteBuffer.allocate(length);
+            buffer.putLong(this.size);
+            buffer.putLong(this.ptr);
+            return buffer.array();
+        }
+    }
+    public static record TopLevelArrayListHeader(long fileSize, ArrayListHeader parent) {
+        public static int length = 8 + ArrayListHeader.length;
+
+        public byte[] getBytes() {
+            var buffer = ByteBuffer.allocate(length);
+            buffer.put(this.parent.getBytes());
+            buffer.putLong(this.fileSize);
+            return buffer.array();
+        }
+    }
+
     public static sealed interface PathPart permits ArrayListInit {}
     public static final class ArrayListInit implements PathPart {}
 
@@ -145,20 +183,20 @@ public class Database {
     private Header writeHeader(Options opts) throws IOException {
         var header = new Header(opts.hashId, opts.hashSize, VERSION, Tag.NONE, MAGIC_NUMBER);
         var writer = this.core.getWriter();
-        writer.write(header.getBytes().array());
+        writer.write(header.getBytes());
         return header;
     }
 
-    private SlotPointer readSlotPointer(WriteMode writeMode, PathPart[] path, SlotPointer slotPointer) throws Exception {
+    private SlotPointer readSlotPointer(WriteMode writeMode, PathPart[] path, SlotPointer slotPtr) throws Exception {
         if (path.length == 0) {
-            if (writeMode == WriteMode.READ_ONLY && slotPointer.slot.tag == Tag.NONE) {
+            if (writeMode == WriteMode.READ_ONLY && slotPtr.slot.tag == Tag.NONE) {
                 throw new KeyNotFound();
             }
-            return slotPointer;
+            return slotPtr;
         }
         var part = path[0];
 
-        var isTopLevel = slotPointer.slot.value == DATABASE_START;
+        var isTopLevel = slotPtr.slot.value == DATABASE_START;
 
         var isTxStart = isTopLevel && this.header.tag == Tag.ARRAY_LIST && this.txStart == null;
         if (isTxStart) {
@@ -170,7 +208,33 @@ public class Database {
                 case ArrayListInit arrayListInit -> {
                     if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowed();
 
-                    return slotPointer;
+                    if (isTopLevel) {
+                        var writer = this.core.getWriter();
+
+                        // if the top level array list hasn't been initialized
+                        if (this.header.tag == Tag.NONE) {
+                            // write the array list header
+                            this.core.seek(DATABASE_START);
+                            var arrayListPtr = DATABASE_START + TopLevelArrayListHeader.length;
+                            writer.write((new TopLevelArrayListHeader(
+                                0,
+                                new ArrayListHeader(arrayListPtr, 0))
+                            ).getBytes());
+
+                            // write the first block
+                            writer.write(new byte[INDEX_BLOCK_SIZE]);
+
+                            // update db header
+                            this.core.seek(0);
+                            this.header = this.header.withTag(Tag.ARRAY_LIST);
+                            writer.write(this.header.getBytes());
+                        }
+
+                        var nextSlotPtr = slotPtr.withSlot(slotPtr.slot.withTag(Tag.ARRAY_LIST));
+                        return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
+                    }
+
+                    return slotPtr;
                 }
             }
         } finally {
@@ -200,6 +264,11 @@ public class Database {
     public static class ReadWriteCursor extends ReadOnlyCursor {
         public ReadWriteCursor(SlotPointer slotPtr, Database db) {
             super(slotPtr, db);
+        }
+
+        public ReadWriteCursor writePath(PathPart[] path) throws Exception {
+            var slotPtr = this.db.readSlotPointer(WriteMode.READ_WRITE, path, this.slotPtr);
+            return new ReadWriteCursor(slotPtr, this.db);
         }
     }
 }

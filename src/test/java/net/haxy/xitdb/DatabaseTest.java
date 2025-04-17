@@ -64,9 +64,10 @@ class DatabaseTest {
             core.setLength(0);
             var db = new Database(core, opts);
             var rootCursor = db.rootCursor();
-            assertThrows(Database.WriteNotAllowed.class, () -> rootCursor.readPath(new Database.PathPart[]{
+
+            rootCursor.writePath(new Database.PathPart[]{
                 new Database.ArrayListInit()
-            }));
+            });
         }
     }
 }
