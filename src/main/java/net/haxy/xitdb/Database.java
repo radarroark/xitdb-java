@@ -178,8 +178,8 @@ public class Database {
     public class KeyNotFound extends Exception {}
     public class WriteNotAllowed extends Exception {}
 
-    public ReadWriteCursor rootCursor() {
-        return new ReadWriteCursor(new SlotPointer(null, new Slot(DATABASE_START, this.header.tag)), this);
+    public WriteCursor rootCursor() {
+        return new WriteCursor(new SlotPointer(null, new Slot(DATABASE_START, this.header.tag)), this);
     }
 
     private Header writeHeader(Options opts) throws IOException {
@@ -244,33 +244,33 @@ public class Database {
         }
     }
 
-    public static class ReadOnlyCursor {
+    public static class Cursor {
         SlotPointer slotPtr;
         Database db;
 
-        public ReadOnlyCursor(SlotPointer slotPtr, Database db) {
+        public Cursor(SlotPointer slotPtr, Database db) {
             this.slotPtr = slotPtr;
             this.db = db;
         }
 
-        public ReadOnlyCursor readPath(PathPart[] path) throws Exception {
+        public Cursor readPath(PathPart[] path) throws Exception {
             try {
                 var slotPtr = this.db.readSlotPointer(WriteMode.READ_ONLY, path, this.slotPtr);
-                return new ReadOnlyCursor(slotPtr, this.db);
+                return new Cursor(slotPtr, this.db);
             } catch (KeyNotFound e) {
                 return null;
             }
         }
     }
 
-    public static class ReadWriteCursor extends ReadOnlyCursor {
-        public ReadWriteCursor(SlotPointer slotPtr, Database db) {
+    public static class WriteCursor extends Cursor {
+        public WriteCursor(SlotPointer slotPtr, Database db) {
             super(slotPtr, db);
         }
 
-        public ReadWriteCursor writePath(PathPart[] path) throws Exception {
+        public WriteCursor writePath(PathPart[] path) throws Exception {
             var slotPtr = this.db.readSlotPointer(WriteMode.READ_WRITE, path, this.slotPtr);
-            return new ReadWriteCursor(slotPtr, this.db);
+            return new WriteCursor(slotPtr, this.db);
         }
     }
 }
