@@ -86,7 +86,7 @@ public class Database {
         }
     }
 
-    public static record Slot(long value, Tag tag, boolean full) {
+    public static record Slot(long value, Tag tag, boolean full) implements WriteableData {
         public static int length = 9;
 
         public Slot() {
@@ -99,6 +99,10 @@ public class Database {
 
         public Slot withTag(Tag tag) {
             return new Slot(this.value, tag, this.full);
+        }
+
+        public Slot withFull(boolean full) {
+            return new Slot(this.value, this.tag, full);
         }
 
         public byte[] getBytes() {
@@ -182,9 +186,21 @@ public class Database {
         }
     }
 
-    public static sealed interface PathPart permits ArrayListInit, ArrayListAppend {}
+    public static sealed interface PathPart permits ArrayListInit, ArrayListAppend, WriteData {}
     public static record ArrayListInit() implements PathPart {}
     public static record ArrayListAppend() implements PathPart {}
+    public static record WriteData(WriteableData data) implements PathPart {}
+
+    public static sealed interface WriteableData permits Slot, Bytes {}
+    public static record Bytes(byte[] value) implements WriteableData {
+        public boolean isShort() {
+            if (this.value.length > 8) return false;
+            for (byte b : this.value) {
+                if (b == 0) return false;
+            }
+            return true;
+        }
+    }
 
     public class KeyNotFound extends Exception {}
     public class WriteNotAllowed extends Exception {}
@@ -354,6 +370,40 @@ public class Database {
                     }
 
                     return finalSlotPtr;
+                }
+                case WriteData writeData -> {
+                    if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowed();
+
+                    if (slotPtr.position == null) throw new CursorNotWriteable();
+                    long position = slotPtr.position;
+
+                    var writer = this.core.getWriter();
+
+                    Slot slot = switch (writeData.data()) {
+                        case Slot s -> s;
+                        case Bytes bytes -> {
+                            if (bytes.isShort()) {
+                                var buffer = ByteBuffer.allocate(8);
+                                buffer.put(bytes.value());
+                                buffer.position(0);
+                                yield new Slot(buffer.getLong(), Tag.SHORT_BYTES);
+                            } else {
+                                throw new Exception("Not implemented");
+                            }
+                        }
+                    };
+
+                    // this bit allows us to distinguish between a slot explicitly set to NONE
+                    // and a slot that hasn't been set yet
+                    if (slot.tag() == Tag.NONE) {
+                        slot = slot.withFull(true);
+                    }
+
+                    this.core.seek(position);
+                    writer.write(slot.getBytes());
+
+                    var nextSlotPtr = new SlotPointer(slotPtr.position(), slot);
+                    return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
                 }
             }
         } finally {

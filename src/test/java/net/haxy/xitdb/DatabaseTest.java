@@ -67,7 +67,8 @@ class DatabaseTest {
 
             rootCursor.writePath(new Database.PathPart[]{
                 new Database.ArrayListInit(),
-                new Database.ArrayListAppend()
+                new Database.ArrayListAppend(),
+                new Database.WriteData(new Database.Bytes("hello".getBytes()))
             });
         }
     }
