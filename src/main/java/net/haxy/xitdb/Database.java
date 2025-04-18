@@ -16,6 +16,7 @@ public class Database {
     public static final int DATABASE_START = Header.length;
     public static final int BIT_COUNT = 4;
     public static final int SLOT_COUNT = 1 << BIT_COUNT;
+    public static final long MASK = SLOT_COUNT - 1;
     public static final int INDEX_BLOCK_SIZE = Slot.length * SLOT_COUNT;
 
     public static record Header (
@@ -181,8 +182,9 @@ public class Database {
         }
     }
 
-    public static sealed interface PathPart permits ArrayListInit {}
+    public static sealed interface PathPart permits ArrayListInit, ArrayListAppend {}
     public static record ArrayListInit() implements PathPart {}
+    public static record ArrayListAppend() implements PathPart {}
 
     public class KeyNotFound extends Exception {}
     public class WriteNotAllowed extends Exception {}
@@ -325,11 +327,141 @@ public class Database {
                         default -> throw new UnexpectedTag();
                     }
                 }
+                case ArrayListAppend arrayListAppend -> {
+                    if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowed();
+
+                    var tag = isTopLevel ? this.header.tag : slotPtr.slot().tag();
+                    if (tag != Tag.ARRAY_LIST) throw new UnexpectedTag();
+
+                    var nextArrayListStart = slotPtr.slot().value();
+
+                    var appendResult = readArrayListSlotAppend(nextArrayListStart, writeMode, isTopLevel);
+                    var finalSlotPtr = readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), appendResult.slotPtr());
+
+                    var writer = this.core.getWriter();
+                    if (isTopLevel) {
+                        this.core.seek(this.core.length());
+                        var fileSize = this.core.length();
+                        var header = new TopLevelArrayListHeader(fileSize, appendResult.header);
+
+                        // update header
+                        this.core.seek(nextArrayListStart);
+                        writer.write(header.getBytes());
+                    } else {
+                        // update header
+                        this.core.seek(nextArrayListStart);
+                        writer.write(appendResult.header().getBytes());
+                    }
+
+                    return finalSlotPtr;
+                }
             }
         } finally {
             this.txStart = null;
         }
     }
+
+    // array_list
+
+    public static record ArrayListAppendResult(ArrayListHeader header, SlotPointer slotPtr) {}
+
+    private ArrayListAppendResult readArrayListSlotAppend(long indexStart, WriteMode writeMode, boolean isTopLevel) throws Exception {
+        var reader = this.core.getReader();
+        var writer = this.core.getWriter();
+
+        this.core.seek(indexStart);
+        var headerBytes = new byte[ArrayListHeader.length];
+        reader.readFully(headerBytes);
+        var header = ArrayListHeader.fromBytes(headerBytes);
+        var indexPos = header.ptr();
+
+        var key = header.size;
+
+        var prevShift = (byte) (key < SLOT_COUNT ? 0 : Math.log(key - 1) / Math.log(SLOT_COUNT));
+        var nextShift = (byte) (key < SLOT_COUNT ? 0 : Math.log(key) / Math.log(SLOT_COUNT));
+
+        if (prevShift != nextShift) {
+            // root overflow
+            this.core.seek(this.core.length());
+            var nextIndexPos = this.core.length();
+            writer.write(new byte[INDEX_BLOCK_SIZE]);
+            this.core.seek(nextIndexPos);
+            writer.write(new Slot(indexPos, Tag.INDEX).getBytes());
+            indexPos = nextIndexPos;
+        }
+
+        var slotPtr = readArrayListSlot(indexPos, key, nextShift, writeMode, isTopLevel);
+        return new ArrayListAppendResult(new ArrayListHeader(indexPos, header.size() + 1), slotPtr);
+    }
+
+    private SlotPointer readArrayListSlot(long indexPos, long key, byte shift, WriteMode writeMode, boolean isTopLevel) throws Exception {
+        var reader = this.core.getReader();
+
+        var i = (key >> (shift * BIT_COUNT)) & MASK;
+        var slotPos = indexPos + (Slot.length * i);
+        this.core.seek(slotPos);
+        var slotBytes = new byte[Slot.length];
+        reader.readFully(slotBytes);
+        var slot = Slot.fromBytes(slotBytes);
+
+        if (shift == 0) {
+            return new SlotPointer(slotPos, slot);
+        }
+
+        var ptr = slot.value();
+
+        switch (slot.tag()) {
+            case NONE -> {
+                switch (writeMode) {
+                    case READ_ONLY -> throw new KeyNotFound();
+                    default -> {
+                        var writer = this.core.getWriter();
+                        this.core.seek(this.core.length());
+                        var nextIndexPos = this.core.length();
+                        writer.write(new byte[INDEX_BLOCK_SIZE]);
+                        // if top level array list, update the file size in the list
+                        // header to prevent truncation from destroying this block
+                        if (isTopLevel) {
+                            this.core.seek(this.core.length());
+                            var fileSize = this.core.length();
+                            this.core.seek(DATABASE_START + ArrayListHeader.length);
+                            writer.writeLong(fileSize);
+                        }
+                        this.core.seek(slotPos);
+                        writer.write(new Slot(nextIndexPos, Tag.INDEX).getBytes());
+                        return readArrayListSlot(nextIndexPos, key, (byte)(shift - 1), writeMode, isTopLevel);
+                    }
+                }
+            }
+            case INDEX -> {
+                var nextPtr = ptr;
+                if (writeMode == WriteMode.READ_WRITE && !isTopLevel) {
+                    if (this.txStart != null) {
+                        if (nextPtr < this.txStart) {
+                            // read existing block
+                            this.core.seek(ptr);
+                            var indexBlock = new byte[INDEX_BLOCK_SIZE];
+                            reader.readFully(indexBlock);
+                            // copy it to the end
+                            var writer = this.core.getWriter();
+                            this.core.seek(this.core.length());
+                            nextPtr = this.core.length();
+                            writer.write(indexBlock);
+                            // make slot point to block
+                            this.core.seek(slotPos);
+                            writer.write(new Slot(nextPtr, Tag.INDEX).getBytes());
+                        }
+                    } else if (this.header.tag() == Tag.ARRAY_LIST) {
+                        throw new ExpectedTxStart();
+                    }
+                }
+                return readArrayListSlot(nextPtr, key, (byte)(shift - 1), writeMode, isTopLevel);
+            }
+            default -> throw new UnexpectedTag();
+        }
+    }
+
+    // Cursor
 
     public static class Cursor {
         SlotPointer slotPtr;
