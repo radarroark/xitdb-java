@@ -173,7 +173,7 @@ public class Database {
     }
 
     public static sealed interface PathPart permits ArrayListInit {}
-    public static final class ArrayListInit implements PathPart {}
+    public static record ArrayListInit() implements PathPart {}
 
     public class KeyNotFound extends Exception {}
     public class WriteNotAllowed extends Exception {}
