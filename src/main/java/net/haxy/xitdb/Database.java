@@ -28,7 +28,7 @@ public class Database {
     ) {
         public static int length = 12;
 
-        public byte[] getBytes() {
+        public byte[] toBytes() {
             var buffer = ByteBuffer.allocate(length);
             buffer.put(this.magicNumber);
             buffer.put((byte)this.tag.ordinal());
@@ -105,7 +105,7 @@ public class Database {
             return new Slot(this.value, this.tag, full);
         }
 
-        public byte[] getBytes() {
+        public byte[] toBytes() {
             var buffer = ByteBuffer.allocate(length);
             var tagInt = this.full ? 0b1000_0000 : 0;
             tagInt = tagInt | this.tag.ordinal();
@@ -157,7 +157,7 @@ public class Database {
     public static record ArrayListHeader(long ptr, long size) {
         public static int length = 16;
 
-        public byte[] getBytes() {
+        public byte[] toBytes() {
             var buffer = ByteBuffer.allocate(length);
             buffer.putLong(this.size);
             buffer.putLong(this.ptr);
@@ -178,9 +178,9 @@ public class Database {
     public static record TopLevelArrayListHeader(long fileSize, ArrayListHeader parent) {
         public static int length = 8 + ArrayListHeader.length;
 
-        public byte[] getBytes() {
+        public byte[] toBytes() {
             var buffer = ByteBuffer.allocate(length);
-            buffer.put(this.parent.getBytes());
+            buffer.put(this.parent.toBytes());
             buffer.putLong(this.fileSize);
             return buffer.array();
         }
@@ -233,7 +233,7 @@ public class Database {
     private Header writeHeader(Options opts) throws IOException {
         var header = new Header(opts.hashId, opts.hashSize, VERSION, Tag.NONE, MAGIC_NUMBER);
         var writer = this.core.getWriter();
-        writer.write(header.getBytes());
+        writer.write(header.toBytes());
         return header;
     }
 
@@ -269,7 +269,7 @@ public class Database {
                             writer.write((new TopLevelArrayListHeader(
                                 0,
                                 new ArrayListHeader(arrayListPtr, 0))
-                            ).getBytes());
+                            ).toBytes());
 
                             // write the first block
                             writer.write(new byte[INDEX_BLOCK_SIZE]);
@@ -277,7 +277,7 @@ public class Database {
                             // update db header
                             this.core.seek(0);
                             this.header = this.header.withTag(Tag.ARRAY_LIST);
-                            writer.write(this.header.getBytes());
+                            writer.write(this.header.toBytes());
                         }
 
                         var nextSlotPtr = slotPtr.withSlot(slotPtr.slot.withTag(Tag.ARRAY_LIST));
@@ -297,12 +297,12 @@ public class Database {
                             writer.write(new ArrayListHeader(
                                 arrayListPtr,
                                 0
-                            ).getBytes());
+                            ).toBytes());
                             writer.write(new byte[INDEX_BLOCK_SIZE]);
                             // make slot point to list
                             var nextSlotPtr = new SlotPointer(position, new Slot(arrayListStart, Tag.ARRAY_LIST));
                             this.core.seek(position);
-                            writer.write(nextSlotPtr.slot.getBytes());
+                            writer.write(nextSlotPtr.slot.toBytes());
                             return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
                         }
                         case Tag.ARRAY_LIST -> {
@@ -327,7 +327,7 @@ public class Database {
                                     arrayListStart = this.core.length();
                                     var nextArrayListPtr = arrayListStart + ArrayListHeader.length;
                                     header = header.withPtr(nextArrayListPtr);
-                                    writer.write(header.getBytes());
+                                    writer.write(header.toBytes());
                                     writer.write(arrayListIndexBlock);
                                 }
                             } else if (this.header.tag() == Tag.ARRAY_LIST) {
@@ -337,7 +337,7 @@ public class Database {
                             // make slot point to list
                             var nextSlotPtr = new SlotPointer(position, new Slot(arrayListStart, Tag.ARRAY_LIST));
                             this.core.seek(position);
-                            writer.write(nextSlotPtr.slot.getBytes());
+                            writer.write(nextSlotPtr.slot.toBytes());
                             return readSlotPointer(writeMode, Arrays.copyOfRange(path, 0, path.length), nextSlotPtr);
                         }
                         default -> throw new UnexpectedTag();
@@ -362,11 +362,11 @@ public class Database {
 
                         // update header
                         this.core.seek(nextArrayListStart);
-                        writer.write(header.getBytes());
+                        writer.write(header.toBytes());
                     } else {
                         // update header
                         this.core.seek(nextArrayListStart);
-                        writer.write(appendResult.header().getBytes());
+                        writer.write(appendResult.header().toBytes());
                     }
 
                     return finalSlotPtr;
@@ -400,7 +400,7 @@ public class Database {
                     }
 
                     this.core.seek(position);
-                    writer.write(slot.getBytes());
+                    writer.write(slot.toBytes());
 
                     var nextSlotPtr = new SlotPointer(slotPtr.position(), slot);
                     return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
@@ -436,7 +436,7 @@ public class Database {
             var nextIndexPos = this.core.length();
             writer.write(new byte[INDEX_BLOCK_SIZE]);
             this.core.seek(nextIndexPos);
-            writer.write(new Slot(indexPos, Tag.INDEX).getBytes());
+            writer.write(new Slot(indexPos, Tag.INDEX).toBytes());
             indexPos = nextIndexPos;
         }
 
@@ -478,7 +478,7 @@ public class Database {
                             writer.writeLong(fileSize);
                         }
                         this.core.seek(slotPos);
-                        writer.write(new Slot(nextIndexPos, Tag.INDEX).getBytes());
+                        writer.write(new Slot(nextIndexPos, Tag.INDEX).toBytes());
                         return readArrayListSlot(nextIndexPos, key, (byte)(shift - 1), writeMode, isTopLevel);
                     }
                     default -> throw new Exception();
@@ -500,7 +500,7 @@ public class Database {
                             writer.write(indexBlock);
                             // make slot point to block
                             this.core.seek(slotPos);
-                            writer.write(new Slot(nextPtr, Tag.INDEX).getBytes());
+                            writer.write(new Slot(nextPtr, Tag.INDEX).toBytes());
                         }
                     } else if (this.header.tag() == Tag.ARRAY_LIST) {
                         throw new ExpectedTxStart();
