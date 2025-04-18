@@ -41,7 +41,7 @@ public class Database {
             var reader = core.getReader();
             var magicNumber = new byte[3];
             reader.readFully(magicNumber);
-            Tag tag = Tag.valueOf(reader.readByte());
+            var tag = Tag.valueOf(reader.readByte() & 0b0111_1111);
             var version = reader.readShort();
             var hashSize = reader.readShort();
             var hashId = reader.readInt();
@@ -102,11 +102,20 @@ public class Database {
 
         public byte[] getBytes() {
             var buffer = ByteBuffer.allocate(length);
-            var tagInt = this.full ? 1 : 0;
-            tagInt = (tagInt << 7) | this.tag.ordinal();
+            var tagInt = this.full ? 0b1000_0000 : 0;
+            tagInt = tagInt | this.tag.ordinal();
             buffer.put((byte)tagInt);
             buffer.putLong(this.value);
             return buffer.array();
+        }
+
+        public static Slot fromBytes(byte[] bytes) {
+            var buffer = ByteBuffer.wrap(bytes);
+            var tagByte = buffer.get();
+            var full = (tagByte & 0b1000_0000) != 0;
+            var tag = Tag.valueOf(tagByte & 0b0111_1111);
+            var value = buffer.getLong();
+            return new Slot(value, tag, full);
         }
     }
 
