@@ -59,7 +59,6 @@ class DatabaseTest {
             assertEquals("sha1", db.header.hashId().toString());
         }
 
-        // array_list of hash_maps
         {
             core.setLength(0);
             var db = new Database(core, opts);
@@ -68,8 +67,13 @@ class DatabaseTest {
             rootCursor.writePath(new Database.PathPart[]{
                 new Database.ArrayListInit(),
                 new Database.ArrayListAppend(),
-                new Database.WriteData(new Database.Bytes("hello".getBytes()))
+                new Database.WriteData(new Database.Slot(42, Database.Tag.UINT))
             });
+
+            var cursor = rootCursor.readPath(new Database.PathPart[] {
+                new Database.ArrayListGet(0)
+            });
+            assertEquals(42, cursor.slotPtr.slot().value());
         }
     }
 }

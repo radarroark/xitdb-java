@@ -186,8 +186,9 @@ public class Database {
         }
     }
 
-    public static sealed interface PathPart permits ArrayListInit, ArrayListAppend, WriteData {}
+    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, WriteData {}
     public static record ArrayListInit() implements PathPart {}
+    public static record ArrayListGet(long index) implements PathPart {}
     public static record ArrayListAppend() implements PathPart {}
     public static record WriteData(WriteableData data) implements PathPart {}
 
@@ -342,6 +343,33 @@ public class Database {
                         }
                         default -> throw new UnexpectedTag();
                     }
+                }
+                case ArrayListGet arrayListGet -> {
+                    var tag = isTopLevel ? this.header.tag : slotPtr.slot().tag();
+                    switch (tag) {
+                        case NONE -> throw new KeyNotFound();
+                        case ARRAY_LIST -> {}
+                        default -> throw new UnexpectedTag();
+                    }
+
+                    var nextArrayListStart = slotPtr.slot().value();
+                    var index = arrayListGet.index();
+
+                    this.core.seek(nextArrayListStart);
+                    var reader = this.core.getReader();
+                    var headerBytes = new byte[ArrayListHeader.length];
+                    reader.readFully(headerBytes);
+                    var header = ArrayListHeader.fromBytes(headerBytes);
+                    if (index >= header.size || index < -header.size) {
+                        throw new KeyNotFound();
+                    }
+
+                    var key = index < 0 ? header.size - Math.abs(index) : index;
+                    var lastKey = header.size - 1;
+                    var shift = (byte) (lastKey < SLOT_COUNT ? 0 : Math.log(lastKey) / Math.log(SLOT_COUNT));
+                    var finalSlotPtr = readArrayListSlot(header.ptr, key, shift, writeMode, isTopLevel);
+
+                    return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), finalSlotPtr);
                 }
                 case ArrayListAppend arrayListAppend -> {
                     if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowed();
