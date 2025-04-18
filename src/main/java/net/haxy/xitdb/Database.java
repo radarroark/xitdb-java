@@ -464,7 +464,7 @@ public class Database {
             case NONE -> {
                 switch (writeMode) {
                     case READ_ONLY -> throw new KeyNotFound();
-                    default -> {
+                    case READ_WRITE -> {
                         var writer = this.core.getWriter();
                         this.core.seek(this.core.length());
                         var nextIndexPos = this.core.length();
@@ -481,6 +481,7 @@ public class Database {
                         writer.write(new Slot(nextIndexPos, Tag.INDEX).getBytes());
                         return readArrayListSlot(nextIndexPos, key, (byte)(shift - 1), writeMode, isTopLevel);
                     }
+                    default -> throw new Exception();
                 }
             }
             case INDEX -> {
