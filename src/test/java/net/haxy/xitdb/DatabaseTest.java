@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.File;
 import java.io.RandomAccessFile;
+import java.security.MessageDigest;
 
 class DatabaseTest {
     @Test
@@ -15,7 +16,7 @@ class DatabaseTest {
 
         try (var raf = new RandomAccessFile(file, "rw")) {
             var core = new CoreFile(raf);
-            var opts = new Database.Options(new Database.HashId(0), (short)20);
+            var opts = new Database.Options(new Hash(MessageDigest.getInstance("SHA-1"), 0));
             testLowLevelApi(core, opts);
         }
     }
@@ -48,15 +49,15 @@ class DatabaseTest {
 
         // save hash id in header
         {
-            var hashId = Database.HashId.fromString("sha1");
-            var optsWithHashId = new Database.Options(hashId, opts.hashSize());
+            var hashId = Hash.stringToId("sha1");
+            var optsWithHashId = new Database.Options(new Hash(MessageDigest.getInstance("SHA-1"), hashId));
 
             // make empty database
             core.setLength(0);
             var db = new Database(core, optsWithHashId);
 
-            assertEquals(hashId.id(), db.header.hashId().id());
-            assertEquals("sha1", db.header.hashId().toString());
+            assertEquals(hashId, db.header.hashId());
+            assertEquals("sha1", Hash.idToString(db.header.hashId()));
         }
 
         {

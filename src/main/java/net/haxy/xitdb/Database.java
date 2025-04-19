@@ -6,10 +6,11 @@ import java.util.Arrays;
 
 public class Database {
     Core core;
+    Hash hash;
     Header header;
     Long txStart;
 
-    public static record Options (HashId hashId, short hashSize) {}
+    public static record Options (Hash hash) {}
 
     public static final short VERSION = 0;
     public static final byte[] MAGIC_NUMBER = "xit".getBytes();
@@ -20,7 +21,7 @@ public class Database {
     public static final int INDEX_BLOCK_SIZE = Slot.length * SLOT_COUNT;
 
     public static record Header (
-        HashId hashId,
+        int hashId,
         short hashSize,
         short version,
         Tag tag,
@@ -34,7 +35,7 @@ public class Database {
             buffer.put((byte)this.tag.ordinal());
             buffer.putShort(this.version);
             buffer.putShort(this.hashSize);
-            buffer.putInt(this.hashId.id);
+            buffer.putInt(this.hashId);
             return buffer.array();
         }
 
@@ -46,7 +47,7 @@ public class Database {
             var version = reader.readShort();
             var hashSize = reader.readShort();
             var hashId = reader.readInt();
-            return new Header(new HashId(hashId), hashSize, version, tag, magicNumber);
+            return new Header(hashId, hashSize, version, tag, magicNumber);
         }
 
         public void validate() throws InvalidDatabaseException, InvalidVersionException {
@@ -60,26 +61,6 @@ public class Database {
 
         public Header withTag(Tag tag) {
             return new Header(this.hashId, this.hashSize, this.version, tag, this.magicNumber);
-        }
-    }
-
-    public static record HashId(int id) {
-        public static HashId fromString(String hashIdName) {
-            var bytes = hashIdName.getBytes();
-            if (bytes.length != 4) {
-                throw new IllegalArgumentException();
-            }
-            var buffer = ByteBuffer.allocate(4);
-            buffer.put(bytes);
-            buffer.position(0);
-            int id = buffer.getInt();
-            return new HashId(id);
-        }
-
-        public String toString() {
-            var buffer = ByteBuffer.allocate(4);
-            buffer.putInt(this.id);
-            return new String(buffer.array());
         }
     }
 
@@ -169,7 +150,7 @@ public class Database {
     // private
 
     private Header writeHeader(Options opts) throws IOException {
-        var header = new Header(opts.hashId, opts.hashSize, VERSION, Tag.NONE, MAGIC_NUMBER);
+        var header = new Header(opts.hash.id(), (short)opts.hash.digest().getDigestLength(), VERSION, Tag.NONE, MAGIC_NUMBER);
         var writer = this.core.getWriter();
         writer.write(header.toBytes());
         return header;
