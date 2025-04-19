@@ -169,6 +169,7 @@ public class Database {
     public static class ExpectedTxStartException extends Exception {}
     public static class KeyOffsetExceededException extends Exception {}
     public static class PathPartMustBeAtEndException extends Exception {}
+    public static class StreamTooLongException extends Exception {}
 
     // init
 

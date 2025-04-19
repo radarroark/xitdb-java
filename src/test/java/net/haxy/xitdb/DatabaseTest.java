@@ -9,6 +9,8 @@ import java.io.RandomAccessFile;
 import java.security.MessageDigest;
 
 class DatabaseTest {
+    static int MAX_READ_BYTES = 1024;
+
     @Test
     void testLowLevelApi() throws Exception {
         var file = File.createTempFile("database", "");
@@ -89,6 +91,10 @@ class DatabaseTest {
                     new Database.HashMapGet(new Database.HashMapGetValue(fooKey))
                 });
                 assertEquals(3, barCursor.count());
+                var barValue = barCursor.readBytes(MAX_READ_BYTES);
+                assertEquals("bar", new String(barValue));
+
+                // TODO: test wrapping ReadCursor.Reader in a BufferedReader
             }
         }
     }

@@ -1,6 +1,7 @@
 package net.haxy.xitdb;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public class ReadCursor {
     SlotPointer slotPtr;
@@ -30,6 +31,43 @@ public class ReadCursor {
             }
         } catch (Database.KeyNotFoundException e) {
             return null;
+        }
+    }
+
+    public byte[] readBytes(long maxSize) throws Exception {
+        var reader = this.db.core.getReader();
+
+        switch (this.slotPtr.slot().tag()) {
+            case NONE -> {
+                return new byte[0];
+            }
+            case BYTES -> {
+                this.db.core.seek(this.slotPtr.slot().value());
+                var valueSize = reader.readLong();
+
+                if (valueSize > maxSize) {
+                    throw new Database.StreamTooLongException();
+                }
+
+                var value = new byte[(int)valueSize];
+                reader.readFully(value);
+                return value;
+            }
+            case SHORT_BYTES -> {
+                var bytes = this.slotPtr.slot().toBytes();
+                var valueSize = 0;
+                for (byte b : bytes) {
+                    if (b == 0) break;
+                    valueSize += 1;
+                }
+
+                if (valueSize > maxSize) {
+                    throw new Database.StreamTooLongException();
+                }
+
+                return Arrays.copyOfRange(bytes, 0, valueSize);
+            }
+            default -> throw new Database.UnexpectedTagException();
         }
     }
 
