@@ -167,6 +167,7 @@ public class Database {
 
     public Database(Core core, Options opts) throws Exception {
         this.core = core;
+        this.hash = opts.hash();
 
         core.seek(0);
         if (core.length() == 0) {
