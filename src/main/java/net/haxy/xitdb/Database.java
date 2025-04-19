@@ -358,7 +358,52 @@ public class Database {
                         return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
                     }
 
-                    throw new Exception("not implemented");
+                    if (slotPtr.position() == null) throw new CursorNotWriteableException();
+                    long position = slotPtr.position();
+
+                    switch (slotPtr.slot().tag()) {
+                        case NONE -> {
+                            // if slot was empty, insert the new map
+                            var writer = this.core.getWriter();
+                            this.core.seek(this.core.length());
+                            var mapStart = this.core.length();
+                            writer.write(new byte[INDEX_BLOCK_SIZE]);
+                            // make slot point to map
+                            var nextSlotPr = new SlotPointer(position, new Slot(mapStart, Tag.HASH_MAP));
+                            this.core.seek(position);
+                            writer.write(nextSlotPr.slot().toBytes());
+                            return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPr);
+                        }
+                        case HASH_MAP -> {
+                            var reader = this.core.getReader();
+                            var writer = this.core.getWriter();
+
+                            var mapStart = slotPtr.slot().value();
+
+                            // copy it to the end unless it was made in this transaction
+                            if (this.txStart != null) {
+                                if (mapStart < this.txStart) {
+                                    // read existing block
+                                    this.core.seek(mapStart);
+                                    var mapIndexBlock = new byte[INDEX_BLOCK_SIZE];
+                                    reader.readFully(mapIndexBlock);
+                                    // copy to the end
+                                    this.core.seek(this.core.length());
+                                    mapStart = this.core.length();
+                                    writer.write(mapIndexBlock);
+                                }
+                            } else if (this.header.tag == Tag.ARRAY_LIST) {
+                                throw new ExpectedTxStartException();
+                            }
+
+                            // make slot point to map
+                            var nextSlotPtr = new SlotPointer(position, new Slot(mapStart, Tag.HASH_MAP));
+                            this.core.seek(position);
+                            writer.write(nextSlotPtr.slot().toBytes());
+                            return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
+                        }
+                        default -> throw new UnexpectedTagException();
+                    }
                 }
                 case WriteData writeData -> {
                     if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();

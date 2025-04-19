@@ -85,6 +85,8 @@ class DatabaseTest {
             var rootCursor = db.rootCursor();
 
             rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListAppend(),
                 new Database.HashMapInit(),
             });
         }
