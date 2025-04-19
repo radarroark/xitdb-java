@@ -3,7 +3,7 @@ package net.haxy.xitdb;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 
-public record Hash(MessageDigest digest, int id) {
+public record Hash(MessageDigest hasher, int id) {
     public static int stringToId(String hashIdName) {
         var bytes = hashIdName.getBytes();
         if (bytes.length != 4) {

@@ -89,6 +89,7 @@ class DatabaseTest {
                 new Database.ArrayListInit(),
                 new Database.ArrayListAppend(),
                 new Database.HashMapInit(),
+                new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("foo".getBytes())))
             });
         }
     }

@@ -3,11 +3,12 @@ package net.haxy.xitdb;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.security.MessageDigest;
 import java.util.Arrays;
 
 public class Database {
     Core core;
-    Hash hash;
+    MessageDigest hasher;
     Header header;
     Long txStart;
 
@@ -167,7 +168,7 @@ public class Database {
 
     public Database(Core core, Options opts) throws Exception {
         this.core = core;
-        this.hash = opts.hash();
+        this.hasher = opts.hash().hasher();
 
         core.seek(0);
         if (core.length() == 0) {
@@ -175,7 +176,7 @@ public class Database {
         } else {
             this.header = Header.read(core);
             this.header.validate();
-            if (this.header.hashSize() != opts.hash().digest().getDigestLength()) {
+            if (this.header.hashSize() != opts.hash().hasher().getDigestLength()) {
                 throw new InvalidHashSizeException();
             }
         }
@@ -190,7 +191,7 @@ public class Database {
     // private
 
     private Header writeHeader(Options opts) throws IOException {
-        var header = new Header(opts.hash.id(), (short)opts.hash.digest().getDigestLength(), VERSION, Tag.NONE, MAGIC_NUMBER);
+        var header = new Header(opts.hash.id(), (short)opts.hash.hasher().getDigestLength(), VERSION, Tag.NONE, MAGIC_NUMBER);
         var writer = this.core.getWriter();
         writer.write(header.toBytes());
         return header;
@@ -434,9 +435,9 @@ public class Database {
                     }
 
                     var nextSlotPtr = switch (hashMapGet.target()) {
-                        case HashMapGetKVPair kvPair -> readMapSlot(slotPtr.slot().value(), kvPair.hash(), (byte)0, writeMode, isTopLevel, hashMapGet.target());
-                        case HashMapGetKey key -> readMapSlot(slotPtr.slot().value(), key.hash(), (byte)0, writeMode, isTopLevel, hashMapGet.target());
-                        case HashMapGetValue value -> readMapSlot(slotPtr.slot().value(), value.hash(), (byte)0, writeMode, isTopLevel, hashMapGet.target());
+                        case HashMapGetKVPair kvPairTarget -> readMapSlot(slotPtr.slot().value(), kvPairTarget.hash(), (byte)0, writeMode, isTopLevel, hashMapGet.target());
+                        case HashMapGetKey keyTarget -> readMapSlot(slotPtr.slot().value(), keyTarget.hash(), (byte)0, writeMode, isTopLevel, hashMapGet.target());
+                        case HashMapGetValue valueTarget -> readMapSlot(slotPtr.slot().value(), valueTarget.hash(), (byte)0, writeMode, isTopLevel, hashMapGet.target());
                     };
 
                     return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
@@ -488,7 +489,7 @@ public class Database {
     // hash_map
 
     private SlotPointer readMapSlot(long indexPos, byte[] keyHash, byte keyOffset, WriteMode writeMode, boolean isTopLevel, HashMapGetTarget target) throws Exception {
-        if (keyOffset > (this.hash.digest().getDigestLength() * 8) / BIT_COUNT) {
+        if (keyOffset > (this.hasher.getDigestLength() * 8) / BIT_COUNT) {
             throw new KeyOffsetExceededException();
         }
 
@@ -506,7 +507,31 @@ public class Database {
 
         switch (slot.tag()) {
             case NONE -> {
-                throw new Exception("Not implemented");
+                switch (writeMode) {
+                    case READ_ONLY -> throw new KeyNotFoundException();
+                    case READ_WRITE -> {
+                        this.core.seek(this.core.length());
+
+                        // write hash and key/val slots
+                        var hashPos = this.core.length();
+                        var keySlotPos = hashPos + keyHash.length;
+                        var valueSlotPos = keySlotPos + Slot.length;
+                        var kvPair = new KeyValuePair(new Slot(), new Slot(), keyHash);
+                        writer.write(kvPair.toBytes());
+
+                        // point slot to hash pos
+                        var nextSlot = new Slot(hashPos, Tag.KV_PAIR);
+                        this.core.seek(slotPos);
+                        writer.write(nextSlot.toBytes());
+
+                        return switch (target) {
+                            case HashMapGetKVPair kvPairTarget -> new SlotPointer(slotPos, nextSlot);
+                            case HashMapGetKey keyTarget -> new SlotPointer(keySlotPos, kvPair.keySlot());
+                            case HashMapGetValue valueTarget -> new SlotPointer(valueSlotPos, kvPair.valueSlot());
+                        };
+                    }
+                    default -> throw new Exception();
+                }
             }
             case INDEX -> {
                 throw new Exception("Not implemented");
