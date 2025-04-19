@@ -85,11 +85,13 @@ class DatabaseTest {
             var db = new Database(core, opts);
             var rootCursor = db.rootCursor();
 
+            var fooHash = db.hasher.digest("foo".getBytes());
             rootCursor.writePath(new Database.PathPart[]{
                 new Database.ArrayListInit(),
                 new Database.ArrayListAppend(),
+                new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                 new Database.HashMapInit(),
-                new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("foo".getBytes())))
+                new Database.HashMapGet(new Database.HashMapGetValue(fooHash))
             });
         }
     }

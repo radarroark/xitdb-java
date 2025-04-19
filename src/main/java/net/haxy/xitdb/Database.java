@@ -450,7 +450,8 @@ public class Database {
 
                     var writer = this.core.getWriter();
 
-                    Slot slot = switch (writeData.data()) {
+                    var data = writeData.data();
+                    Slot slot = data == null ? new Slot() : switch (data) {
                         case Slot s -> s;
                         case Bytes bytes -> {
                             if (bytes.isShort()) {

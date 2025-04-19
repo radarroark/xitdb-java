@@ -20,6 +20,19 @@ public class ReadCursor {
         }
     }
 
+    public Slot readPathSlot(Database.PathPart[] path) throws Exception {
+        try {
+            var slotPtr = this.db.readSlotPointer(Database.WriteMode.READ_ONLY, path, this.slotPtr);
+            if (slotPtr.slot().tag() != Tag.NONE || slotPtr.slot().full()) {
+                return slotPtr.slot();
+            } else {
+                return null;
+            }
+        } catch (Database.KeyNotFoundException e) {
+            return null;
+        }
+    }
+
     public Reader getReader() throws Exception {
         var reader = this.db.core.getReader();
 
