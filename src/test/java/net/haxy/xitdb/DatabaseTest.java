@@ -144,6 +144,33 @@ class DatabaseTest {
                     }
                 })
             });
+
+            // overwrite foo -> baz
+            rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListAppend(),
+                new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                new Database.HashMapInit(),
+                new Database.HashMapGet(new Database.HashMapGetValue(fooKey)),
+                new Database.Context((cursor) -> {
+                    assertNotEquals(Tag.NONE, cursor.slotPtr.slot().tag());
+
+                    var writer = cursor.getWriter();
+                    writer.write("x".getBytes());
+                    writer.write("x".getBytes());
+                    writer.write("x".getBytes());
+                    writer.seek(0);
+                    writer.write("b".getBytes());
+                    writer.seek(2);
+                    writer.write("z".getBytes());
+                    writer.seek(1);
+                    writer.write("a".getBytes());
+                    writer.finish();
+
+                    var value = cursor.readBytes(MAX_READ_BYTES);
+                    assertEquals("baz", new String(value));
+                })
+            });
         }
     }
 }

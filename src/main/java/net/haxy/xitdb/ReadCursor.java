@@ -3,8 +3,6 @@ package net.haxy.xitdb;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-import net.haxy.xitdb.Database.InvalidOffsetException;
-
 public class ReadCursor {
     SlotPointer slotPtr;
     Database db;
@@ -185,7 +183,7 @@ public class ReadCursor {
             return buffer.getLong();
         }
 
-        public void seek(long position) throws InvalidOffsetException {
+        public void seek(long position) throws Database.InvalidOffsetException {
             if (position > this.size) {
                 throw new Database.InvalidOffsetException();
             }

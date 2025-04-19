@@ -40,7 +40,7 @@ public class WriteCursor extends ReadCursor {
             this.parent.db.core.seek(this.startPosition + this.relativePosition);
             var writer = this.parent.db.core.getWriter();
             writer.write(buffer);
-            this.relativePosition = buffer.length;
+            this.relativePosition += buffer.length;
             if (this.relativePosition > this.size) {
                 this.size = this.relativePosition;
             }
@@ -58,6 +58,12 @@ public class WriteCursor extends ReadCursor {
             writer.write(this.slot.toBytes());
 
             this.parent.slotPtr = this.parent.slotPtr.withSlot(this.slot);
+        }
+
+        public void seek(long position) {
+            if (position <= this.size) {
+                this.relativePosition = position;
+            }
         }
     }
 }
