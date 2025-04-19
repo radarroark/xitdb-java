@@ -83,69 +83,6 @@ public class Database {
         }
     }
 
-    public static record Slot(long value, Tag tag, boolean full) implements WriteableData {
-        public static int length = 9;
-
-        public Slot() {
-            this(0, Tag.NONE, false);
-        }
-
-        public Slot(long value, Tag tag) {
-            this(value, tag, false);
-        }
-
-        public Slot withTag(Tag tag) {
-            return new Slot(this.value, tag, this.full);
-        }
-
-        public Slot withFull(boolean full) {
-            return new Slot(this.value, this.tag, full);
-        }
-
-        public byte[] toBytes() {
-            var buffer = ByteBuffer.allocate(length);
-            var tagInt = this.full ? 0b1000_0000 : 0;
-            tagInt = tagInt | this.tag.ordinal();
-            buffer.put((byte)tagInt);
-            buffer.putLong(this.value);
-            return buffer.array();
-        }
-
-        public static Slot fromBytes(byte[] bytes) {
-            var buffer = ByteBuffer.wrap(bytes);
-            var tagByte = buffer.get();
-            var full = (tagByte & 0b1000_0000) != 0;
-            var tag = Tag.valueOf(tagByte & 0b0111_1111);
-            var value = buffer.getLong();
-            return new Slot(value, tag, full);
-        }
-    }
-
-    public static record SlotPointer(Long position, Slot slot) {
-        public SlotPointer withSlot(Slot slot) {
-            return new SlotPointer(this.position, slot);
-        }
-    }
-
-    public static enum Tag {
-        NONE,
-        INDEX,
-        ARRAY_LIST,
-        LINKED_ARRAY_LIST,
-        HASH_MAP,
-        KV_PAIR,
-        BYTES,
-        SHORT_BYTES,
-        UINT,
-        INT,
-        FLOAT;
-
-        public static Tag valueOf(int n) {
-            if (n > Tag.values().length) throw new IllegalArgumentException();
-            return Tag.values()[n];
-        }
-    }
-
     public static enum WriteMode {
         READ_ONLY,
         READ_WRITE
@@ -237,16 +174,16 @@ public class Database {
         return header;
     }
 
-    private SlotPointer readSlotPointer(WriteMode writeMode, PathPart[] path, SlotPointer slotPtr) throws Exception {
+    protected SlotPointer readSlotPointer(WriteMode writeMode, PathPart[] path, SlotPointer slotPtr) throws Exception {
         if (path.length == 0) {
-            if (writeMode == WriteMode.READ_ONLY && slotPtr.slot.tag == Tag.NONE) {
+            if (writeMode == WriteMode.READ_ONLY && slotPtr.slot().tag() == Tag.NONE) {
                 throw new KeyNotFoundException();
             }
             return slotPtr;
         }
         var part = path[0];
 
-        var isTopLevel = slotPtr.slot.value == DATABASE_START;
+        var isTopLevel = slotPtr.slot().value() == DATABASE_START;
 
         var isTxStart = isTopLevel && this.header.tag == Tag.ARRAY_LIST && this.txStart == null;
         if (isTxStart) {
@@ -280,14 +217,14 @@ public class Database {
                             writer.write(this.header.toBytes());
                         }
 
-                        var nextSlotPtr = slotPtr.withSlot(slotPtr.slot.withTag(Tag.ARRAY_LIST));
+                        var nextSlotPtr = slotPtr.withSlot(slotPtr.slot().withTag(Tag.ARRAY_LIST));
                         return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
                     }
 
-                    if (slotPtr.position == null) throw new CursorNotWriteableException();
-                    long position = slotPtr.position;
+                    if (slotPtr.position() == null) throw new CursorNotWriteableException();
+                    long position = slotPtr.position();
 
-                    switch (slotPtr.slot.tag()) {
+                    switch (slotPtr.slot().tag()) {
                         case Tag.NONE -> {
                             // if slot was empty, insert the new list
                             var writer = this.core.getWriter();
@@ -302,14 +239,14 @@ public class Database {
                             // make slot point to list
                             var nextSlotPtr = new SlotPointer(position, new Slot(arrayListStart, Tag.ARRAY_LIST));
                             this.core.seek(position);
-                            writer.write(nextSlotPtr.slot.toBytes());
+                            writer.write(nextSlotPtr.slot().toBytes());
                             return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
                         }
                         case Tag.ARRAY_LIST -> {
                             var reader = this.core.getReader();
                             var writer = this.core.getWriter();
 
-                            var arrayListStart = slotPtr.slot.value();
+                            var arrayListStart = slotPtr.slot().value();
 
                             // copy it to the end unless it was made in this transaction
                             if (this.txStart != null) {
@@ -337,7 +274,7 @@ public class Database {
                             // make slot point to list
                             var nextSlotPtr = new SlotPointer(position, new Slot(arrayListStart, Tag.ARRAY_LIST));
                             this.core.seek(position);
-                            writer.write(nextSlotPtr.slot.toBytes());
+                            writer.write(nextSlotPtr.slot().toBytes());
                             return readSlotPointer(writeMode, Arrays.copyOfRange(path, 0, path.length), nextSlotPtr);
                         }
                         default -> throw new UnexpectedTagException();
@@ -401,8 +338,8 @@ public class Database {
                 case WriteData writeData -> {
                     if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
 
-                    if (slotPtr.position == null) throw new CursorNotWriteableException();
-                    long position = slotPtr.position;
+                    if (slotPtr.position() == null) throw new CursorNotWriteableException();
+                    long position = slotPtr.position();
 
                     var writer = this.core.getWriter();
 
@@ -540,138 +477,6 @@ public class Database {
                 return readArrayListSlot(nextPtr, key, (byte)(shift - 1), writeMode, isTopLevel);
             }
             default -> throw new UnexpectedTagException();
-        }
-    }
-
-    // Cursor
-
-    public static class Cursor {
-        SlotPointer slotPtr;
-        Database db;
-
-        public Cursor(SlotPointer slotPtr, Database db) {
-            this.slotPtr = slotPtr;
-            this.db = db;
-        }
-
-        public Cursor readPath(PathPart[] path) throws Exception {
-            try {
-                var slotPtr = this.db.readSlotPointer(WriteMode.READ_ONLY, path, this.slotPtr);
-                return new Cursor(slotPtr, this.db);
-            } catch (KeyNotFoundException e) {
-                return null;
-            }
-        }
-
-        public Reader getReader() throws Exception {
-            var reader = this.db.core.getReader();
-
-            switch (this.slotPtr.slot().tag()) {
-                case BYTES -> {
-                    this.db.core.seek(this.slotPtr.slot().value());
-                    var size = reader.readLong();
-                    var startPosition = this.db.core.position();
-                    return new Reader(this, size, startPosition, 0);
-                }
-                case SHORT_BYTES -> {
-                    var bytes = this.slotPtr.slot().toBytes();
-                    var valueSize = 0;
-                    for (byte b : bytes) {
-                        if (b == 0) break;
-                        valueSize += 1;
-                    }
-                    // add one to get past the tag byte
-                    var startPosition = this.slotPtr.position() + 1;
-                    return new Reader(this, valueSize, startPosition, 0);
-                }
-                default -> throw new UnexpectedTagException();
-            }
-        }
-
-        public static class Reader {
-            Cursor parent;
-            long size;
-            long startPosition;
-            long relativePosition;
-
-            public Reader(Cursor parent, long size, long startPosition, long relativePosition) {
-                this.parent = parent;
-                this.size = size;
-                this.startPosition = startPosition;
-                this.relativePosition = relativePosition;
-            }
-
-            public int read(byte[] buffer) throws Exception {
-                if (this.size < this.relativePosition) throw new IOException("End of stream");
-                this.parent.db.core.seek(this.startPosition + this.relativePosition);
-                var readSize = Math.min(buffer.length, (int) (this.size - this.relativePosition));
-                var reader = this.parent.db.core.getReader();
-                reader.readFully(buffer, 0, readSize);
-                this.relativePosition += readSize;
-                return readSize;
-            }
-        }
-    }
-
-    public static class WriteCursor extends Cursor {
-        public WriteCursor(SlotPointer slotPtr, Database db) {
-            super(slotPtr, db);
-        }
-
-        public WriteCursor writePath(PathPart[] path) throws Exception {
-            var slotPtr = this.db.readSlotPointer(WriteMode.READ_WRITE, path, this.slotPtr);
-            return new WriteCursor(slotPtr, this.db);
-        }
-
-        public Writer getWriter() throws Exception {
-            var writer = this.db.core.getWriter();
-            this.db.core.seek(this.db.core.length());
-            var ptrPos = this.db.core.length();
-            writer.writeLong(0);
-            var startPosition = this.db.core.length();
-
-            return new Writer(this, 0, new Slot(ptrPos, Tag.BYTES), startPosition, 0);
-        }
-
-        public static class Writer {
-            Cursor parent;
-            long size;
-            Slot slot;
-            long startPosition;
-            long relativePosition;
-
-            public Writer(Cursor parent, long size, Slot slot, long startPosition, long relativePosition) {
-                this.parent = parent;
-                this.size = size;
-                this.slot = slot;
-                this.startPosition = startPosition;
-                this.relativePosition = relativePosition;
-            }
-
-            public void write(byte[] buffer) throws Exception {
-                if (this.size < this.relativePosition) throw new IOException("End of stream");
-                this.parent.db.core.seek(this.startPosition + this.relativePosition);
-                var writer = this.parent.db.core.getWriter();
-                writer.write(buffer);
-                this.relativePosition = buffer.length;
-                if (this.relativePosition > this.size) {
-                    this.size = this.relativePosition;
-                }
-            }
-
-            public void finish() throws Exception {
-                var writer = this.parent.db.core.getWriter();
-
-                this.parent.db.core.seek(this.slot.value());
-                writer.writeLong(this.size);
-
-                if (this.parent.slotPtr.position == null) throw new CursorNotWriteableException();
-                long position = this.parent.slotPtr.position;
-                this.parent.db.core.seek(position);
-                writer.write(this.slot.toBytes());
-
-                this.parent.slotPtr = this.parent.slotPtr.withSlot(this.slot);
-            }
         }
     }
 }
