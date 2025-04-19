@@ -198,7 +198,7 @@ public class Database {
     }
 
     private byte[] checkHash(byte[] hash) throws InvalidHashSizeException {
-        if (hash.length != this.hasher.getDigestLength()) {
+        if (hash.length != this.header.hashSize()) {
             throw new InvalidHashSizeException();
         }
         return hash;
@@ -497,7 +497,7 @@ public class Database {
     // hash_map
 
     private SlotPointer readMapSlot(long indexPos, byte[] keyHash, byte keyOffset, WriteMode writeMode, boolean isTopLevel, HashMapGetTarget target) throws Exception {
-        if (keyOffset > (this.hasher.getDigestLength() * 8) / BIT_COUNT) {
+        if (keyOffset > (this.header.hashSize() * 8) / BIT_COUNT) {
             throw new KeyOffsetExceededException();
         }
 
@@ -522,7 +522,7 @@ public class Database {
 
                         // write hash and key/val slots
                         var hashPos = this.core.length();
-                        var keySlotPos = hashPos + keyHash.length;
+                        var keySlotPos = hashPos + this.header.hashSize();
                         var valueSlotPos = keySlotPos + Slot.length;
                         var kvPair = new KeyValuePair(new Slot(), new Slot(), keyHash);
                         writer.write(kvPair.toBytes());
@@ -542,10 +542,72 @@ public class Database {
                 }
             }
             case INDEX -> {
-                throw new Exception("Not implemented");
+                var nextPtr = ptr;
+                if (writeMode == WriteMode.READ_WRITE && !isTopLevel) {
+                    if (this.txStart != null) {
+                        if (nextPtr < this.txStart) {
+                            // read existing block
+                            this.core.seek(ptr);
+                            var indexBlock = new byte[INDEX_BLOCK_SIZE];
+                            reader.readFully(indexBlock);
+                            // copy it to the end
+                            this.core.seek(this.core.length());
+                            nextPtr = this.core.length();
+                            writer.write(indexBlock);
+                            // make slot point to block
+                            this.core.seek(slotPos);
+                            writer.write(new Slot(nextPtr, Tag.INDEX).toBytes());
+                        }
+                    } else if (this.header.tag() == Tag.ARRAY_LIST) {
+                        throw new ExpectedTxStartException();
+                    }
+                }
+                return readMapSlot(nextPtr, keyHash, (byte) (keyOffset + 1), writeMode, isTopLevel, target);
             }
             case KV_PAIR -> {
-                throw new Exception("Not implemented");
+                this.core.seek(ptr);
+                var kvPairBytes = new byte[KeyValuePair.length(this.header.hashSize())];
+                reader.readFully(kvPairBytes);
+                var kvPair = KeyValuePair.fromBytes(kvPairBytes, this.header.hashSize());
+
+                if (Arrays.equals(kvPair.hash(), keyHash)) {
+                    if (writeMode == WriteMode.READ_WRITE && !isTopLevel) {
+                        if (this.txStart != null) {
+                            if (ptr < this.txStart) {
+                                this.core.seek(this.core.length());
+
+                                // write hash and key/val slots
+                                var hashPos = this.core.length();
+                                var keySlotPos = hashPos + this.header.hashSize();
+                                var valueSlotPos = keySlotPos + Slot.length;
+                                writer.write(kvPair.toBytes());
+
+                                // point slot to hash pos
+                                var nextSlot = new Slot(hashPos, Tag.KV_PAIR);
+                                this.core.seek(slotPos);
+                                writer.write(nextSlot.toBytes());
+
+                                return switch (target) {
+                                    case HashMapGetKVPair kvPairTarget -> new SlotPointer(slotPos, nextSlot);
+                                    case HashMapGetKey keyTarget -> new SlotPointer(keySlotPos, kvPair.keySlot());
+                                    case HashMapGetValue valueTarget -> new SlotPointer(valueSlotPos, kvPair.valueSlot());
+                                };
+                            }
+                        } else if (this.header.tag() == Tag.ARRAY_LIST) {
+                            throw new ExpectedTxStartException();
+                        }
+                    }
+
+                    var keySlotPos = ptr + this.header.hashSize();
+                    var valueSlotPos = keySlotPos + Slot.length;
+                    return switch (target) {
+                        case HashMapGetKVPair kvPairTarget -> new SlotPointer(slotPos, slot);
+                        case HashMapGetKey keyTarget -> new SlotPointer(keySlotPos, kvPair.keySlot());
+                        case HashMapGetValue valueTarget -> new SlotPointer(valueSlotPos, kvPair.valueSlot());
+                    };
+                } else {
+                    throw new Exception("Not implemented");
+                }
             }
             default -> throw new UnexpectedTagException();
         }

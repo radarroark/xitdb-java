@@ -93,6 +93,14 @@ class DatabaseTest {
                 new Database.HashMapInit(),
                 new Database.HashMapGet(new Database.HashMapGetValue(fooHash))
             });
+
+            rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListAppend(),
+                new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                new Database.HashMapInit(),
+                new Database.HashMapGet(new Database.HashMapGetValue(fooHash))
+            });
         }
     }
 }
