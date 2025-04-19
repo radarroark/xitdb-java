@@ -67,13 +67,16 @@ class DatabaseTest {
             rootCursor.writePath(new Database.PathPart[]{
                 new Database.ArrayListInit(),
                 new Database.ArrayListAppend(),
-                new Database.WriteData(new Database.Slot(42, Database.Tag.UINT))
+                new Database.WriteData(new Database.Bytes("Hello, world!".getBytes()))
             });
 
             var cursor = rootCursor.readPath(new Database.PathPart[] {
                 new Database.ArrayListGet(0)
             });
-            assertEquals(42, cursor.slotPtr.slot().value());
+            var reader = cursor.getReader();
+            var buffer = new byte[20];
+            var size = reader.read(buffer);
+            assertEquals("Hello, world!", new String(buffer, 0, size));
         }
     }
 }
