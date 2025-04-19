@@ -34,7 +34,7 @@ public class CoreFile implements Core {
 
     @Override
     public long position() throws IOException {
-        return this.file.getChannel().position();
+        return this.file.getFilePointer();
     }
 
     @Override
