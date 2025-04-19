@@ -2,19 +2,19 @@ package net.haxy.xitdb;
 
 import java.io.IOException;
 
-public class Cursor {
+public class ReadCursor {
     SlotPointer slotPtr;
     Database db;
 
-    public Cursor(SlotPointer slotPtr, Database db) {
+    public ReadCursor(SlotPointer slotPtr, Database db) {
         this.slotPtr = slotPtr;
         this.db = db;
     }
 
-    public Cursor readPath(Database.PathPart[] path) throws Exception {
+    public ReadCursor readPath(Database.PathPart[] path) throws Exception {
         try {
             var slotPtr = this.db.readSlotPointer(Database.WriteMode.READ_ONLY, path, this.slotPtr);
-            return new Cursor(slotPtr, this.db);
+            return new ReadCursor(slotPtr, this.db);
         } catch (Database.KeyNotFoundException e) {
             return null;
         }
@@ -46,12 +46,12 @@ public class Cursor {
     }
 
     public static class Reader {
-        Cursor parent;
+        ReadCursor parent;
         long size;
         long startPosition;
         long relativePosition;
 
-        public Reader(Cursor parent, long size, long startPosition, long relativePosition) {
+        public Reader(ReadCursor parent, long size, long startPosition, long relativePosition) {
             this.parent = parent;
             this.size = size;
             this.startPosition = startPosition;

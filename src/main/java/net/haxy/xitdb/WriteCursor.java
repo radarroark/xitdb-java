@@ -2,7 +2,7 @@ package net.haxy.xitdb;
 
 import java.io.IOException;
 
-public class WriteCursor extends Cursor {
+public class WriteCursor extends ReadCursor {
     public WriteCursor(SlotPointer slotPtr, Database db) {
         super(slotPtr, db);
     }
@@ -23,13 +23,13 @@ public class WriteCursor extends Cursor {
     }
 
     public static class Writer {
-        Cursor parent;
+        WriteCursor parent;
         long size;
         Slot slot;
         long startPosition;
         long relativePosition;
 
-        public Writer(Cursor parent, long size, Slot slot, long startPosition, long relativePosition) {
+        public Writer(WriteCursor parent, long size, Slot slot, long startPosition, long relativePosition) {
             this.parent = parent;
             this.size = size;
             this.slot = slot;
