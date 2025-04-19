@@ -1,7 +1,5 @@
 package net.haxy.xitdb;
 
-import java.io.IOException;
-
 public class WriteCursor extends ReadCursor {
     public WriteCursor(SlotPointer slotPtr, Database db) {
         super(slotPtr, db);
@@ -38,7 +36,7 @@ public class WriteCursor extends ReadCursor {
         }
 
         public void write(byte[] buffer) throws Exception {
-            if (this.size < this.relativePosition) throw new IOException("End of stream");
+            if (this.size < this.relativePosition) throw new Database.EndOfStreamException();
             this.parent.db.core.seek(this.startPosition + this.relativePosition);
             var writer = this.parent.db.core.getWriter();
             writer.write(buffer);

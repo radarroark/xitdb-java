@@ -1,7 +1,9 @@
 package net.haxy.xitdb;
 
-import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
+
+import net.haxy.xitdb.Database.InvalidOffsetException;
 
 public class ReadCursor {
     SlotPointer slotPtr;
@@ -140,13 +142,54 @@ public class ReadCursor {
         }
 
         public int read(byte[] buffer) throws Exception {
-            if (this.size < this.relativePosition) throw new IOException("End of stream");
+            if (this.size < this.relativePosition) throw new Database.EndOfStreamException();
             this.parent.db.core.seek(this.startPosition + this.relativePosition);
             var readSize = Math.min(buffer.length, (int) (this.size - this.relativePosition));
             var reader = this.parent.db.core.getReader();
             reader.readFully(buffer, 0, readSize);
             this.relativePosition += readSize;
             return readSize;
+        }
+
+        public void readFully(byte[] bytes) throws Exception {
+            if (this.size < this.relativePosition || this.size - this.relativePosition < bytes.length) throw new Database.EndOfStreamException();
+            this.parent.db.core.seek(this.startPosition + this.relativePosition);
+            var reader = this.parent.db.core.getReader();
+            reader.readFully(bytes);
+            this.relativePosition += bytes.length;
+        }
+
+        public byte readByte() throws Exception {
+            var bytes = new byte[1];
+            this.readFully(bytes);
+            return bytes[0];
+        }
+
+        public int readInt() throws Exception {
+            var readSize = 4;
+            var bytes = new byte[readSize];
+            this.readFully(bytes);
+            var buffer = ByteBuffer.allocate(readSize);
+            buffer.put(bytes);
+            buffer.position(0);
+            return buffer.getInt();
+        }
+
+        public long readLong() throws Exception {
+            var readSize = 8;
+            var bytes = new byte[readSize];
+            this.readFully(bytes);
+            var buffer = ByteBuffer.allocate(readSize);
+            buffer.put(bytes);
+            buffer.position(0);
+            return buffer.getLong();
+        }
+
+        public void seek(long position) throws InvalidOffsetException {
+            if (position > this.size) {
+                throw new Database.InvalidOffsetException();
+            }
+            this.relativePosition = position;
         }
     }
 }

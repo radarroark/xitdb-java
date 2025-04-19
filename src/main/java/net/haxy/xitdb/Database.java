@@ -170,6 +170,8 @@ public class Database {
     public static class KeyOffsetExceededException extends Exception {}
     public static class PathPartMustBeAtEndException extends Exception {}
     public static class StreamTooLongException extends Exception {}
+    public static class EndOfStreamException extends Exception {}
+    public static class InvalidOffsetException extends Exception {}
 
     // init
 

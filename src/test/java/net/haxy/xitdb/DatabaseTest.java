@@ -96,6 +96,54 @@ class DatabaseTest {
 
                 // TODO: test wrapping ReadCursor.Reader in a BufferedReader
             }
+
+            // read foo from ctx
+            rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListAppend(),
+                new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                new Database.HashMapInit(),
+                new Database.HashMapGet(new Database.HashMapGetValue(fooKey)),
+                new Database.Context((cursor) -> {
+                    assertNotEquals(Tag.NONE, cursor.slotPtr.slot().tag());
+
+                    var value = cursor.readBytes(MAX_READ_BYTES);
+                    assertEquals("bar", new String(value));
+
+                    var barReader = cursor.getReader();
+
+                    // read into buffer
+                    var barBytes = new byte[10];
+                    var barSize = barReader.read(barBytes);
+                    assertEquals("bar", new String(barBytes, 0, barSize));
+                    barReader.seek(0);
+                    assertEquals(3, barReader.read(barBytes));
+                    assertEquals("bar", new String(barBytes, 0, 3));
+
+                    // read one char at a time
+                    {
+                        var ch = new byte[1];
+                        barReader.seek(0);
+
+                        barReader.read(ch);
+                        assertEquals("b", new String(ch));
+
+                        barReader.read(ch);
+                        assertEquals("a", new String(ch));
+
+                        barReader.read(ch);
+                        assertEquals("r", new String(ch));
+
+                        assertEquals(0, barReader.read(ch));
+
+                        barReader.seek(1);
+                        assertEquals('a', (char)barReader.readByte());
+
+                        barReader.seek(0);
+                        assertEquals('b', (char)barReader.readByte());
+                    }
+                })
+            });
         }
     }
 }
