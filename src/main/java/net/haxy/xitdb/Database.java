@@ -492,6 +492,9 @@ public class Database {
         if (keyOffset > (this.hasher.getDigestLength() * 8) / BIT_COUNT) {
             throw new KeyOffsetExceededException();
         }
+        if (keyHash.length != this.hasher.getDigestLength()) {
+            throw new InvalidHashSizeException();
+        }
 
         var reader = this.core.getReader();
         var writer = this.core.getWriter();
