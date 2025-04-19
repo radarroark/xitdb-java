@@ -120,10 +120,11 @@ public class Database {
         }
     }
 
-    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, WriteData {}
+    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, HashMapInit, WriteData {}
     public static record ArrayListInit() implements PathPart {}
     public static record ArrayListGet(long index) implements PathPart {}
     public static record ArrayListAppend() implements PathPart {}
+    public static record HashMapInit() implements PathPart {}
     public static record WriteData(WriteableData data) implements PathPart {}
 
     public static sealed interface WriteableData permits Slot, Bytes {}
@@ -334,6 +335,30 @@ public class Database {
                     }
 
                     return finalSlotPtr;
+                }
+                case HashMapInit hashMapInit -> {
+                    if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
+
+                    if (isTopLevel) {
+                        var writer = this.core.getWriter();
+
+                        // if the top level hash map hasn't been initialized
+                        if (this.header.tag == Tag.NONE) {
+                            // write the first block
+                            this.core.seek(DATABASE_START);
+                            writer.write(new byte[INDEX_BLOCK_SIZE]);
+
+                            // update db header
+                            this.core.seek(0);
+                            this.header = this.header.withTag(Tag.HASH_MAP);
+                            writer.write(this.header.toBytes());
+                        }
+
+                        var nextSlotPtr = slotPtr.withSlot(slotPtr.slot().withTag(Tag.HASH_MAP));
+                        return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
+                    }
+
+                    throw new Exception("not implemented");
                 }
                 case WriteData writeData -> {
                     if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();

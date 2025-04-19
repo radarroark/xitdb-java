@@ -78,5 +78,15 @@ class DatabaseTest {
             var size = reader.read(buffer);
             assertEquals("Hello, world!", new String(buffer, 0, size));
         }
+
+        {
+            core.setLength(0);
+            var db = new Database(core, opts);
+            var rootCursor = db.rootCursor();
+
+            rootCursor.writePath(new Database.PathPart[]{
+                new Database.HashMapInit(),
+            });
+        }
     }
 }
