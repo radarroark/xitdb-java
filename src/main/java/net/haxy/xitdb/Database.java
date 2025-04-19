@@ -1,6 +1,7 @@
 package net.haxy.xitdb;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
@@ -18,6 +19,7 @@ public class Database {
     public static final int BIT_COUNT = 4;
     public static final int SLOT_COUNT = 1 << BIT_COUNT;
     public static final long MASK = SLOT_COUNT - 1;
+    public static final BigInteger BIG_MASK = BigInteger.valueOf(MASK);
     public static final int INDEX_BLOCK_SIZE = Slot.length * SLOT_COUNT;
 
     public static record Header (
@@ -101,12 +103,18 @@ public class Database {
         }
     }
 
-    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, HashMapInit, WriteData {}
+    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, HashMapInit, HashMapGet, WriteData {}
     public static record ArrayListInit() implements PathPart {}
     public static record ArrayListGet(long index) implements PathPart {}
     public static record ArrayListAppend() implements PathPart {}
     public static record HashMapInit() implements PathPart {}
+    public static record HashMapGet(HashMapGetTarget target) implements PathPart {}
     public static record WriteData(WriteableData data) implements PathPart {}
+
+    public static sealed interface HashMapGetTarget permits HashMapGetKVPair, HashMapGetKey, HashMapGetValue {}
+    public static record HashMapGetKVPair(BigInteger hash) implements HashMapGetTarget {}
+    public static record HashMapGetKey(BigInteger hash) implements HashMapGetTarget {}
+    public static record HashMapGetValue(BigInteger hash) implements HashMapGetTarget {}
 
     public static sealed interface WriteableData permits Slot, Bytes {}
     public static record Bytes(byte[] value) implements WriteableData {
@@ -127,6 +135,7 @@ public class Database {
     public static class UnexpectedTagException extends Exception {}
     public static class CursorNotWriteableException extends Exception {}
     public static class ExpectedTxStartException extends Exception {}
+    public static class KeyOffsetExceededException extends Exception {}
 
     // init
 
@@ -390,6 +399,21 @@ public class Database {
                         default -> throw new UnexpectedTagException();
                     }
                 }
+                case HashMapGet hashMapGet -> {
+                    switch (slotPtr.slot().tag()) {
+                        case NONE -> throw new KeyNotFoundException();
+                        case HASH_MAP -> {}
+                        default -> throw new UnexpectedTagException();
+                    }
+
+                    var nextSlotPtr = switch (hashMapGet.target()) {
+                        case HashMapGetKVPair kvPair -> readMapSlot(slotPtr.slot().value(), kvPair.hash(), (byte)0, writeMode, isTopLevel, hashMapGet.target());
+                        case HashMapGetKey key -> readMapSlot(slotPtr.slot().value(), key.hash(), (byte)0, writeMode, isTopLevel, hashMapGet.target());
+                        case HashMapGetValue value -> readMapSlot(slotPtr.slot().value(), value.hash(), (byte)0, writeMode, isTopLevel, hashMapGet.target());
+                    };
+
+                    return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
+                }
                 case WriteData writeData -> {
                     if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
 
@@ -431,6 +455,39 @@ public class Database {
             }
         } finally {
             this.txStart = null;
+        }
+    }
+
+    // hash_map
+
+    private SlotPointer readMapSlot(long indexPos, BigInteger keyHash, byte keyOffset, WriteMode writeMode, boolean isTopLevel, HashMapGetTarget target) throws Exception {
+        if (keyOffset > (this.hash.digest().getDigestLength() * 8) / BIT_COUNT) {
+            throw new KeyOffsetExceededException();
+        }
+
+        var reader = this.core.getReader();
+        var writer = this.core.getWriter();
+
+        var i = keyHash.shiftRight(keyOffset * BIT_COUNT).and(BIG_MASK).intValueExact();
+        var slotPos = indexPos + (Slot.length * i);
+        this.core.seek(slotPos);
+        var slotBytes = new byte[Slot.length];
+        reader.readFully(slotBytes);
+        var slot = Slot.fromBytes(slotBytes);
+
+        var ptr = slot.value();
+
+        switch (slot.tag()) {
+            case NONE -> {
+                throw new Exception("Not implemented");
+            }
+            case INDEX -> {
+                throw new Exception("Not implemented");
+            }
+            case KV_PAIR -> {
+                throw new Exception("Not implemented");
+            }
+            default -> throw new UnexpectedTagException();
         }
     }
 
