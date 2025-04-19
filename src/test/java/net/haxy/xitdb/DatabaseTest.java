@@ -34,7 +34,7 @@ class DatabaseTest {
             writer.writeByte('g');
 
             // re-open with error
-            assertThrows(Database.Header.InvalidDatabaseException.class, () -> new Database(core, opts));
+            assertThrows(Database.InvalidDatabaseException.class, () -> new Database(core, opts));
 
             // modify the version
             db.core.seek(0);
@@ -43,7 +43,7 @@ class DatabaseTest {
             writer.writeShort(Database.VERSION + 1);
 
             // re-open with error
-            assertThrows(Database.Header.InvalidVersionException.class, () -> new Database(core, opts));
+            assertThrows(Database.InvalidVersionException.class, () -> new Database(core, opts));
         }
 
         // save hash id in header

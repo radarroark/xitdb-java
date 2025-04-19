@@ -61,9 +61,6 @@ public class Database {
         public Header withTag(Tag tag) {
             return new Header(this.hashId, this.hashSize, this.version, tag, this.magicNumber);
         }
-
-        public class InvalidDatabaseException extends Exception {}
-        public class InvalidVersionException extends Exception {}
     }
 
     public static record HashId(int id) {
@@ -203,11 +200,13 @@ public class Database {
         }
     }
 
-    public class KeyNotFound extends Exception {}
-    public class WriteNotAllowed extends Exception {}
-    public class UnexpectedTag extends Exception {}
-    public class CursorNotWriteable extends Exception {}
-    public class ExpectedTxStart extends Exception {}
+    public static class InvalidDatabaseException extends Exception {}
+    public static class InvalidVersionException extends Exception {}
+    public static class KeyNotFoundException extends Exception {}
+    public static class WriteNotAllowedException extends Exception {}
+    public static class UnexpectedTagException extends Exception {}
+    public static class CursorNotWriteableException extends Exception {}
+    public static class ExpectedTxStartException extends Exception {}
 
     // init
 
@@ -241,7 +240,7 @@ public class Database {
     private SlotPointer readSlotPointer(WriteMode writeMode, PathPart[] path, SlotPointer slotPtr) throws Exception {
         if (path.length == 0) {
             if (writeMode == WriteMode.READ_ONLY && slotPtr.slot.tag == Tag.NONE) {
-                throw new KeyNotFound();
+                throw new KeyNotFoundException();
             }
             return slotPtr;
         }
@@ -257,7 +256,7 @@ public class Database {
         try {
             switch (part) {
                 case ArrayListInit arrayListInit -> {
-                    if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowed();
+                    if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
 
                     if (isTopLevel) {
                         var writer = this.core.getWriter();
@@ -285,7 +284,7 @@ public class Database {
                         return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
                     }
 
-                    if (slotPtr.position == null) throw new CursorNotWriteable();
+                    if (slotPtr.position == null) throw new CursorNotWriteableException();
                     long position = slotPtr.position;
 
                     switch (slotPtr.slot.tag()) {
@@ -332,7 +331,7 @@ public class Database {
                                     writer.write(arrayListIndexBlock);
                                 }
                             } else if (this.header.tag() == Tag.ARRAY_LIST) {
-                                throw new ExpectedTxStart();
+                                throw new ExpectedTxStartException();
                             }
 
                             // make slot point to list
@@ -341,15 +340,15 @@ public class Database {
                             writer.write(nextSlotPtr.slot.toBytes());
                             return readSlotPointer(writeMode, Arrays.copyOfRange(path, 0, path.length), nextSlotPtr);
                         }
-                        default -> throw new UnexpectedTag();
+                        default -> throw new UnexpectedTagException();
                     }
                 }
                 case ArrayListGet arrayListGet -> {
                     var tag = isTopLevel ? this.header.tag : slotPtr.slot().tag();
                     switch (tag) {
-                        case NONE -> throw new KeyNotFound();
+                        case NONE -> throw new KeyNotFoundException();
                         case ARRAY_LIST -> {}
-                        default -> throw new UnexpectedTag();
+                        default -> throw new UnexpectedTagException();
                     }
 
                     var nextArrayListStart = slotPtr.slot().value();
@@ -361,7 +360,7 @@ public class Database {
                     reader.readFully(headerBytes);
                     var header = ArrayListHeader.fromBytes(headerBytes);
                     if (index >= header.size || index < -header.size) {
-                        throw new KeyNotFound();
+                        throw new KeyNotFoundException();
                     }
 
                     var key = index < 0 ? header.size - Math.abs(index) : index;
@@ -372,10 +371,10 @@ public class Database {
                     return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), finalSlotPtr);
                 }
                 case ArrayListAppend arrayListAppend -> {
-                    if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowed();
+                    if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
 
                     var tag = isTopLevel ? this.header.tag : slotPtr.slot().tag();
-                    if (tag != Tag.ARRAY_LIST) throw new UnexpectedTag();
+                    if (tag != Tag.ARRAY_LIST) throw new UnexpectedTagException();
 
                     var nextArrayListStart = slotPtr.slot().value();
 
@@ -400,9 +399,9 @@ public class Database {
                     return finalSlotPtr;
                 }
                 case WriteData writeData -> {
-                    if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowed();
+                    if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
 
-                    if (slotPtr.position == null) throw new CursorNotWriteable();
+                    if (slotPtr.position == null) throw new CursorNotWriteableException();
                     long position = slotPtr.position;
 
                     var writer = this.core.getWriter();
@@ -495,7 +494,7 @@ public class Database {
         switch (slot.tag()) {
             case NONE -> {
                 switch (writeMode) {
-                    case READ_ONLY -> throw new KeyNotFound();
+                    case READ_ONLY -> throw new KeyNotFoundException();
                     case READ_WRITE -> {
                         var writer = this.core.getWriter();
                         this.core.seek(this.core.length());
@@ -535,12 +534,12 @@ public class Database {
                             writer.write(new Slot(nextPtr, Tag.INDEX).toBytes());
                         }
                     } else if (this.header.tag() == Tag.ARRAY_LIST) {
-                        throw new ExpectedTxStart();
+                        throw new ExpectedTxStartException();
                     }
                 }
                 return readArrayListSlot(nextPtr, key, (byte)(shift - 1), writeMode, isTopLevel);
             }
-            default -> throw new UnexpectedTag();
+            default -> throw new UnexpectedTagException();
         }
     }
 
@@ -559,7 +558,7 @@ public class Database {
             try {
                 var slotPtr = this.db.readSlotPointer(WriteMode.READ_ONLY, path, this.slotPtr);
                 return new Cursor(slotPtr, this.db);
-            } catch (KeyNotFound e) {
+            } catch (KeyNotFoundException e) {
                 return null;
             }
         }
@@ -585,7 +584,7 @@ public class Database {
                     var startPosition = this.slotPtr.position() + 1;
                     return new Reader(this, valueSize, startPosition, 0);
                 }
-                default -> throw this.db.new UnexpectedTag();
+                default -> throw new UnexpectedTagException();
             }
         }
 
@@ -666,7 +665,7 @@ public class Database {
                 this.parent.db.core.seek(this.slot.value());
                 writer.writeLong(this.size);
 
-                if (this.parent.slotPtr.position == null) throw this.parent.db.new CursorNotWriteable();
+                if (this.parent.slotPtr.position == null) throw new CursorNotWriteableException();
                 long position = this.parent.slotPtr.position;
                 this.parent.db.core.seek(position);
                 writer.write(this.slot.toBytes());
