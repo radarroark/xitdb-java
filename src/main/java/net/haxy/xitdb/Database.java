@@ -559,6 +559,30 @@ public class Database {
                 return null;
             }
         }
+
+        public static class Reader {
+            Cursor parent;
+            long size;
+            long startPosition;
+            long relativePosition;
+
+            public Reader(Cursor parent, long size, long startPosition, long relativePosition) {
+                this.parent = parent;
+                this.size = size;
+                this.startPosition = startPosition;
+                this.relativePosition = relativePosition;
+            }
+
+            public int read(byte[] buffer) throws Exception {
+                if (this.size < this.relativePosition) throw new IOException("End of stream");
+                this.parent.db.core.seek(this.startPosition + this.relativePosition);
+                var readSize = Math.min(buffer.length, (int) (this.size - this.relativePosition));
+                var reader = this.parent.db.core.getReader();
+                reader.readFully(buffer, 0, readSize);
+                this.relativePosition += readSize;
+                return readSize;
+            }
+        }
     }
 
     public static class WriteCursor extends Cursor {
