@@ -197,6 +197,13 @@ public class Database {
         return header;
     }
 
+    private byte[] checkHash(byte[] hash) throws InvalidHashSizeException {
+        if (hash.length != this.hasher.getDigestLength()) {
+            throw new InvalidHashSizeException();
+        }
+        return hash;
+    }
+
     protected SlotPointer readSlotPointer(WriteMode writeMode, PathPart[] path, SlotPointer slotPtr) throws Exception {
         if (path.length == 0) {
             if (writeMode == WriteMode.READ_ONLY && slotPtr.slot().tag() == Tag.NONE) {
@@ -435,9 +442,9 @@ public class Database {
                     }
 
                     var nextSlotPtr = switch (hashMapGet.target()) {
-                        case HashMapGetKVPair kvPairTarget -> readMapSlot(slotPtr.slot().value(), kvPairTarget.hash(), (byte)0, writeMode, isTopLevel, hashMapGet.target());
-                        case HashMapGetKey keyTarget -> readMapSlot(slotPtr.slot().value(), keyTarget.hash(), (byte)0, writeMode, isTopLevel, hashMapGet.target());
-                        case HashMapGetValue valueTarget -> readMapSlot(slotPtr.slot().value(), valueTarget.hash(), (byte)0, writeMode, isTopLevel, hashMapGet.target());
+                        case HashMapGetKVPair kvPairTarget -> readMapSlot(slotPtr.slot().value(), checkHash(kvPairTarget.hash()), (byte)0, writeMode, isTopLevel, hashMapGet.target());
+                        case HashMapGetKey keyTarget -> readMapSlot(slotPtr.slot().value(), checkHash(keyTarget.hash()), (byte)0, writeMode, isTopLevel, hashMapGet.target());
+                        case HashMapGetValue valueTarget -> readMapSlot(slotPtr.slot().value(), checkHash(valueTarget.hash()), (byte)0, writeMode, isTopLevel, hashMapGet.target());
                     };
 
                     return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
@@ -492,9 +499,6 @@ public class Database {
     private SlotPointer readMapSlot(long indexPos, byte[] keyHash, byte keyOffset, WriteMode writeMode, boolean isTopLevel, HashMapGetTarget target) throws Exception {
         if (keyOffset > (this.hasher.getDigestLength() * 8) / BIT_COUNT) {
             throw new KeyOffsetExceededException();
-        }
-        if (keyHash.length != this.hasher.getDigestLength()) {
-            throw new InvalidHashSizeException();
         }
 
         var reader = this.core.getReader();
