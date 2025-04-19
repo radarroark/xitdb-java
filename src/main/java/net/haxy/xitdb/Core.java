@@ -12,5 +12,7 @@ public interface Core {
 
     public void seek(long pos) throws Exception;
 
+    public long position() throws Exception;
+
     public void setLength(long len) throws Exception;
 }

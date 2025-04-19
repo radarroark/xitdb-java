@@ -33,6 +33,11 @@ public class CoreFile implements Core {
     }
 
     @Override
+    public long position() throws IOException {
+        return this.file.getChannel().position();
+    }
+
+    @Override
     public void setLength(long len) throws Exception {
         this.file.setLength(len);
     }

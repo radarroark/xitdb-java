@@ -560,6 +560,31 @@ public class Database {
             }
         }
 
+        public Reader getReader() throws Exception {
+            var reader = this.db.core.getReader();
+
+            switch (this.slotPtr.slot().tag()) {
+                case BYTES -> {
+                    this.db.core.seek(this.slotPtr.slot().value());
+                    var size = reader.readLong();
+                    var startPosition = this.db.core.position();
+                    return new Reader(this, size, startPosition, 0);
+                }
+                case SHORT_BYTES -> {
+                    var bytes = this.slotPtr.slot().toBytes();
+                    var valueSize = 0;
+                    for (byte b : bytes) {
+                        if (b == 0) break;
+                        valueSize += 1;
+                    }
+                    // add one to get past the tag byte
+                    var startPosition = this.slotPtr.position() + 1;
+                    return new Reader(this, valueSize, startPosition, 0);
+                }
+                default -> throw this.db.new UnexpectedTag();
+            }
+        }
+
         public static class Reader {
             Cursor parent;
             long size;
