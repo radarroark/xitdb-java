@@ -121,6 +121,7 @@ public class Database {
 
     public static class InvalidDatabaseException extends Exception {}
     public static class InvalidVersionException extends Exception {}
+    public static class InvalidHashSizeException extends Exception {}
     public static class KeyNotFoundException extends Exception {}
     public static class WriteNotAllowedException extends Exception {}
     public static class UnexpectedTagException extends Exception {}
@@ -138,6 +139,9 @@ public class Database {
         } else {
             this.header = Header.read(core);
             this.header.validate();
+            if (this.header.hashSize() != opts.hash().digest().getDigestLength()) {
+                throw new InvalidHashSizeException();
+            }
         }
 
         this.txStart = null;
