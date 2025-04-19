@@ -102,6 +102,32 @@ public class Database {
             return buffer.array();
         }
     }
+    public static record KeyValuePair(Slot valueSlot, Slot keySlot, byte[] hash) {
+        public static int length(int hashSize) {
+            return hashSize + Slot.length * 2;
+        }
+
+        public byte[] toBytes() {
+            var buffer = ByteBuffer.allocate(length(hash.length));
+            buffer.put(hash);
+            buffer.put(keySlot.toBytes());
+            buffer.put(valueSlot.toBytes());
+            return buffer.array();
+        }
+
+        public static KeyValuePair fromBytes(byte[] bytes, int hashSize) {
+            var buffer = ByteBuffer.wrap(bytes);
+            var hash = new byte[hashSize];
+            buffer.get(hash);
+            var keySlotBytes = new byte[Slot.length];
+            buffer.get(keySlotBytes);
+            var keySlot = Slot.fromBytes(keySlotBytes);
+            var valueSlotBytes = new byte[Slot.length];
+            buffer.get(valueSlotBytes);
+            var valueSlot = Slot.fromBytes(valueSlotBytes);
+            return new KeyValuePair(valueSlot, keySlot, hash);
+        }
+    }
 
     public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, HashMapInit, HashMapGet, WriteData {}
     public static record ArrayListInit() implements PathPart {}
@@ -112,9 +138,9 @@ public class Database {
     public static record WriteData(WriteableData data) implements PathPart {}
 
     public static sealed interface HashMapGetTarget permits HashMapGetKVPair, HashMapGetKey, HashMapGetValue {}
-    public static record HashMapGetKVPair(BigInteger hash) implements HashMapGetTarget {}
-    public static record HashMapGetKey(BigInteger hash) implements HashMapGetTarget {}
-    public static record HashMapGetValue(BigInteger hash) implements HashMapGetTarget {}
+    public static record HashMapGetKVPair(byte[] hash) implements HashMapGetTarget {}
+    public static record HashMapGetKey(byte[] hash) implements HashMapGetTarget {}
+    public static record HashMapGetValue(byte[] hash) implements HashMapGetTarget {}
 
     public static sealed interface WriteableData permits Slot, Bytes {}
     public static record Bytes(byte[] value) implements WriteableData {
@@ -460,7 +486,7 @@ public class Database {
 
     // hash_map
 
-    private SlotPointer readMapSlot(long indexPos, BigInteger keyHash, byte keyOffset, WriteMode writeMode, boolean isTopLevel, HashMapGetTarget target) throws Exception {
+    private SlotPointer readMapSlot(long indexPos, byte[] keyHash, byte keyOffset, WriteMode writeMode, boolean isTopLevel, HashMapGetTarget target) throws Exception {
         if (keyOffset > (this.hash.digest().getDigestLength() * 8) / BIT_COUNT) {
             throw new KeyOffsetExceededException();
         }
@@ -468,7 +494,7 @@ public class Database {
         var reader = this.core.getReader();
         var writer = this.core.getWriter();
 
-        var i = keyHash.shiftRight(keyOffset * BIT_COUNT).and(BIG_MASK).intValueExact();
+        var i = new BigInteger(keyHash).shiftRight(keyOffset * BIT_COUNT).and(BIG_MASK).intValueExact();
         var slotPos = indexPos + (Slot.length * i);
         this.core.seek(slotPos);
         var slotBytes = new byte[Slot.length];
