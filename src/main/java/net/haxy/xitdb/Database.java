@@ -606,7 +606,26 @@ public class Database {
                         case HashMapGetValue valueTarget -> new SlotPointer(valueSlotPos, kvPair.valueSlot());
                     };
                 } else {
-                    throw new Exception("Not implemented");
+                    switch (writeMode) {
+                        case READ_ONLY -> throw new KeyNotFoundException();
+                        case READ_WRITE -> {
+                            // append new index block
+                            if (keyOffset + 1 >= (this.header.hashSize() * 8) / BIT_COUNT) {
+                                throw new KeyOffsetExceededException();
+                            }
+                            var nextI = new BigInteger(kvPair.hash()).shiftRight((keyOffset + 1) * BIT_COUNT).and(BIG_MASK).intValueExact();
+                            this.core.seek(this.core.length());
+                            var nextIndexPos = this.core.length();
+                            writer.write(new byte[INDEX_BLOCK_SIZE]);
+                            this.core.seek(nextIndexPos + (Slot.length * nextI));
+                            writer.write(slot.toBytes());
+                            var nextSlotPtr = readMapSlot(nextIndexPos, keyHash, (byte) (keyOffset + 1), writeMode, isTopLevel, target);
+                            this.core.seek(slotPos);
+                            writer.write(new Slot(nextIndexPos, Tag.INDEX).toBytes());
+                            return nextSlotPtr;
+                        }
+                        default -> throw new Exception();
+                    }
                 }
             }
             default -> throw new UnexpectedTagException();

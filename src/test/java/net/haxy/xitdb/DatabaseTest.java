@@ -94,6 +94,7 @@ class DatabaseTest {
                 new Database.HashMapGet(new Database.HashMapGetValue(fooHash))
             });
 
+            fooHash[fooHash.length-2] = 0;
             rootCursor.writePath(new Database.PathPart[]{
                 new Database.ArrayListInit(),
                 new Database.ArrayListAppend(),
