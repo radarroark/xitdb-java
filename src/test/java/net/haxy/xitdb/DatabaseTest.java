@@ -60,48 +60,36 @@ class DatabaseTest {
             assertEquals("sha1", Hash.idToString(db.header.hashId()));
         }
 
+        // array_list of hash_maps
         {
             core.setLength(0);
             var db = new Database(core, opts);
             var rootCursor = db.rootCursor();
 
-            rootCursor.writePath(new Database.PathPart[]{
-                new Database.ArrayListInit(),
-                new Database.ArrayListAppend(),
-                new Database.WriteData(new Database.Bytes("Hello, world!".getBytes()))
-            });
-
-            var cursor = rootCursor.readPath(new Database.PathPart[] {
-                new Database.ArrayListGet(0)
-            });
-            var reader = cursor.getReader();
-            var buffer = new byte[20];
-            var size = reader.read(buffer);
-            assertEquals("Hello, world!", new String(buffer, 0, size));
-        }
-
-        {
-            core.setLength(0);
-            var db = new Database(core, opts);
-            var rootCursor = db.rootCursor();
-
-            var fooHash = db.hasher.digest("foo".getBytes());
+            // write foo -> bar with a writer
+            var fooKey = db.hasher.digest("foo".getBytes());
             rootCursor.writePath(new Database.PathPart[]{
                 new Database.ArrayListInit(),
                 new Database.ArrayListAppend(),
                 new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                 new Database.HashMapInit(),
-                new Database.HashMapGet(new Database.HashMapGetValue(fooHash))
+                new Database.HashMapGet(new Database.HashMapGetValue(fooKey)),
+                new Database.Context((cursor) -> {
+                    assertEquals(Tag.NONE, cursor.slotPtr.slot().tag());
+                    var writer = cursor.getWriter();
+                    writer.write("bar".getBytes());
+                    writer.finish();
+                })
             });
 
-            fooHash[fooHash.length-2] = 0;
-            rootCursor.writePath(new Database.PathPart[]{
-                new Database.ArrayListInit(),
-                new Database.ArrayListAppend(),
-                new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
-                new Database.HashMapInit(),
-                new Database.HashMapGet(new Database.HashMapGetValue(fooHash))
-            });
+            // read foo
+            {
+                var barCursor = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.HashMapGet(new Database.HashMapGetValue(fooKey))
+                });
+                assertEquals(3, barCursor.count());
+            }
         }
     }
 }

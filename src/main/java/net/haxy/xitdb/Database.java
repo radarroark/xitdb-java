@@ -130,13 +130,18 @@ public class Database {
         }
     }
 
-    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, HashMapInit, HashMapGet, WriteData {}
+    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, HashMapInit, HashMapGet, WriteData, Context {}
     public static record ArrayListInit() implements PathPart {}
     public static record ArrayListGet(long index) implements PathPart {}
     public static record ArrayListAppend() implements PathPart {}
     public static record HashMapInit() implements PathPart {}
     public static record HashMapGet(HashMapGetTarget target) implements PathPart {}
     public static record WriteData(WriteableData data) implements PathPart {}
+    public static record Context(ContextFunction function) implements PathPart {}
+
+    public static interface ContextFunction {
+        public void run(WriteCursor cursor) throws Exception;
+    }
 
     public static sealed interface HashMapGetTarget permits HashMapGetKVPair, HashMapGetKey, HashMapGetValue {}
     public static record HashMapGetKVPair(byte[] hash) implements HashMapGetTarget {}
@@ -163,6 +168,7 @@ public class Database {
     public static class CursorNotWriteableException extends Exception {}
     public static class ExpectedTxStartException extends Exception {}
     public static class KeyOffsetExceededException extends Exception {}
+    public static class PathPartMustBeAtEndException extends Exception {}
 
     // init
 
@@ -487,6 +493,20 @@ public class Database {
 
                     var nextSlotPtr = new SlotPointer(slotPtr.position(), slot);
                     return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
+                }
+                case Context context -> {
+                    if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
+
+                    if (path.length > 1) throw new PathPartMustBeAtEndException();
+
+                    var nextCursor = new WriteCursor(slotPtr, this);
+                    try {
+                        context.function().run(nextCursor);
+                    } catch (Exception e) {
+                        // TODO: truncate
+                        throw e;
+                    }
+                    return nextCursor.slotPtr;
                 }
             }
         } finally {

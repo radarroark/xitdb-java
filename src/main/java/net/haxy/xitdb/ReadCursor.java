@@ -58,6 +58,36 @@ public class ReadCursor {
         }
     }
 
+    public long count() throws Exception {
+        var reader = this.db.core.getReader();
+        switch (this.slotPtr.slot().tag()) {
+            case NONE -> {
+                return 0;
+            }
+            case ARRAY_LIST -> {
+                this.db.core.seek(this.slotPtr.slot().value());
+                var headerBytes = new byte[Database.ArrayListHeader.length];
+                reader.readFully(headerBytes);
+                var header = Database.ArrayListHeader.fromBytes(headerBytes);
+                return header.size();
+            }
+            case LINKED_ARRAY_LIST -> throw new Exception("Not implemented");
+            case BYTES -> {
+                this.db.core.seek(this.slotPtr.slot().value());
+                return reader.readLong();
+            }
+            case SHORT_BYTES -> {
+                var size = 0;
+                for (byte b : this.slotPtr.slot().toBytes()) {
+                    if (b == 0) break;
+                    size += 1;
+                }
+                return size;
+            }
+            default -> throw new Database.UnexpectedTagException();
+        }
+    }
+
     public static class Reader {
         ReadCursor parent;
         long size;
