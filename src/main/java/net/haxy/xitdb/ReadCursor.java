@@ -13,6 +13,10 @@ public class ReadCursor {
         this.db = db;
     }
 
+    public Slot slot() {
+        return this.slotPtr.slot();
+    }
+
     public ReadCursor readPath(Database.PathPart[] path) throws Exception {
         try {
             var slotPtr = this.db.readSlotPointer(Database.WriteMode.READ_ONLY, path, this.slotPtr);

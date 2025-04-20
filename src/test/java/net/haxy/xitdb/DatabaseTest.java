@@ -83,7 +83,7 @@ class DatabaseTest {
                 new Database.HashMapInit(),
                 new Database.HashMapGet(new Database.HashMapGetValue(fooKey)),
                 new Database.Context((cursor) -> {
-                    assertEquals(Tag.NONE, cursor.slotPtr.slot().tag());
+                    assertEquals(Tag.NONE, cursor.slot().tag());
                     var writer = cursor.getWriter();
                     writer.write("bar".getBytes());
                     writer.finish();
@@ -111,7 +111,7 @@ class DatabaseTest {
                 new Database.HashMapInit(),
                 new Database.HashMapGet(new Database.HashMapGetValue(fooKey)),
                 new Database.Context((cursor) -> {
-                    assertNotEquals(Tag.NONE, cursor.slotPtr.slot().tag());
+                    assertNotEquals(Tag.NONE, cursor.slot().tag());
 
                     var value = cursor.readBytes(MAX_READ_BYTES);
                     assertEquals("bar", new String(value));
@@ -159,7 +159,7 @@ class DatabaseTest {
                 new Database.HashMapInit(),
                 new Database.HashMapGet(new Database.HashMapGetValue(fooKey)),
                 new Database.Context((cursor) -> {
-                    assertNotEquals(Tag.NONE, cursor.slotPtr.slot().tag());
+                    assertNotEquals(Tag.NONE, cursor.slot().tag());
 
                     var writer = cursor.getWriter();
                     writer.write("x".getBytes());
@@ -177,6 +177,48 @@ class DatabaseTest {
                     assertEquals("baz", new String(value));
                 })
             });
+
+            // write bar -> longstring
+            var barKey = db.md.digest("bar".getBytes());
+            {
+                var barCursor = rootCursor.writePath(new Database.PathPart[]{
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                    new Database.HashMapInit(),
+                    new Database.HashMapGet(new Database.HashMapGetValue(barKey))
+                });
+                barCursor.write(new Database.Bytes("longstring".getBytes()));
+
+                // the slot tag is BYTES because the byte array is > 8 bytes long
+                assertEquals(Tag.BYTES, barCursor.slot().tag());
+
+                // writing again returns the same slot
+                {
+                    var nextBarCursor = rootCursor.writePath(new Database.PathPart[]{
+                        new Database.ArrayListInit(),
+                        new Database.ArrayListAppend(),
+                        new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                        new Database.HashMapInit(),
+                        new Database.HashMapGet(new Database.HashMapGetValue(barKey))
+                    });
+                    nextBarCursor.writeIfEmpty(new Database.Bytes("longstring".getBytes()));
+                    assertEquals(barCursor.slot().value(), nextBarCursor.slot().value());
+                }
+
+                // writing with write returns a new slot
+                {
+                    var nextBarCursor = rootCursor.writePath(new Database.PathPart[]{
+                        new Database.ArrayListInit(),
+                        new Database.ArrayListAppend(),
+                        new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                        new Database.HashMapInit(),
+                        new Database.HashMapGet(new Database.HashMapGetValue(barKey))
+                    });
+                    nextBarCursor.write(new Database.Bytes("longstring".getBytes()));
+                    assertNotEquals(barCursor.slot().value(), nextBarCursor.slot().value());
+                }
+            }
         }
     }
 }
