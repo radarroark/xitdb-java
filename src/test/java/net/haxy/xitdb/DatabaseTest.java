@@ -13,14 +13,14 @@ class DatabaseTest {
 
     @Test
     void testLowLevelApi() throws Exception {
-        var file = File.createTempFile("database", "");
-        file.deleteOnExit();
-
         try (var ram = new RandomAccessMemory()) {
             var core = new CoreMemory(ram);
             var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
             testLowLevelApi(core, hasher);
         }
+
+        var file = File.createTempFile("database", "");
+        file.deleteOnExit();
 
         try (var raf = new RandomAccessFile(file, "rw")) {
             var core = new CoreFile(raf);

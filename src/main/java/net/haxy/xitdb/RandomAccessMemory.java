@@ -10,6 +10,7 @@ import java.util.Arrays;
 public class RandomAccessMemory extends ByteArrayOutputStream implements DataOutput, DataInput {
     int position = 0;
 
+    @Override
     public void write(byte[] buffer) throws IOException {
         if (this.position < this.count) {
             int bytesBeforeEnd = Math.min(buffer.length, this.count - this.position);
@@ -17,8 +18,8 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
                 this.buf[this.position + i] = buffer[i];
             }
 
-            if (this.position + buffer.length > this.count) {
-                int bytesAfterEnd = (this.position + buffer.length) - this.count;
+            if (bytesBeforeEnd < buffer.length) {
+                int bytesAfterEnd = buffer.length - bytesBeforeEnd;
                 super.write(Arrays.copyOfRange(buffer, buffer.length - bytesAfterEnd, buffer.length));
             }
         } else {
@@ -26,6 +27,12 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
         }
 
         this.position += buffer.length;
+    }
+
+    @Override
+    public void reset() {
+        super.reset();
+        this.position = 0;
     }
 
     public void seek(int pos) {
@@ -38,14 +45,14 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
 
     public void setLength(int len) throws IOException {
         if (len == 0) {
-            this.reset();
-            this.position = 0;
+            reset();
         } else {
-            if (len > this.size()) throw new IllegalArgumentException();
-            var bytes = this.toByteArray();
-            this.reset();
-            this.position = 0;
-            this.write(Arrays.copyOfRange(bytes, 0, len));
+            if (len > size()) throw new IllegalArgumentException();
+            var bytes = toByteArray();
+            var originalPos = this.position;
+            reset();
+            write(Arrays.copyOfRange(bytes, 0, len));
+            seek(originalPos);
         }
     }
 
