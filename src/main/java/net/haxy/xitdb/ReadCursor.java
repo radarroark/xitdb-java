@@ -59,7 +59,10 @@ public class ReadCursor {
                 return value;
             }
             case SHORT_BYTES -> {
-                var bytes = this.slotPtr.slot().toBytes();
+                var buffer = ByteBuffer.allocate(8);
+                buffer.putLong(this.slotPtr.slot().value());
+                var bytes = buffer.array();
+
                 var valueSize = 0;
                 for (byte b : bytes) {
                     if (b == 0) break;
@@ -87,7 +90,10 @@ public class ReadCursor {
                 return new Reader(this, size, startPosition, 0);
             }
             case SHORT_BYTES -> {
-                var bytes = this.slotPtr.slot().toBytes();
+                var buffer = ByteBuffer.allocate(8);
+                buffer.putLong(this.slotPtr.slot().value());
+                var bytes = buffer.array();
+
                 var valueSize = 0;
                 for (byte b : bytes) {
                     if (b == 0) break;
@@ -120,8 +126,12 @@ public class ReadCursor {
                 return reader.readLong();
             }
             case SHORT_BYTES -> {
+                var buffer = ByteBuffer.allocate(8);
+                buffer.putLong(this.slotPtr.slot().value());
+                var bytes = buffer.array();
+
                 var size = 0;
-                for (byte b : this.slotPtr.slot().toBytes()) {
+                for (byte b : bytes) {
                     if (b == 0) break;
                     size += 1;
                 }

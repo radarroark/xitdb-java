@@ -219,6 +219,38 @@ class DatabaseTest {
                     assertNotEquals(barCursor.slot().value(), nextBarCursor.slot().value());
                 }
             }
+
+            // read bar
+            {
+                var fooCursor = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.HashMapGet(new Database.HashMapGetValue(barKey))
+                });
+                var fooValue = fooCursor.readBytes(MAX_READ_BYTES);
+                assertEquals("longstring", new String(fooValue));
+            }
+
+            // write bar -> shortstr
+            {
+                var barCursor = rootCursor.writePath(new Database.PathPart[]{
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                    new Database.HashMapInit(),
+                    new Database.HashMapGet(new Database.HashMapGetValue(barKey))
+                });
+                barCursor.write(new Database.Bytes("shortstr".getBytes()));
+
+                // the slot tag is SHORT_BYTES because the byte array is <= 8 bytes long
+                assertEquals(Tag.SHORT_BYTES, barCursor.slot().tag());
+                assertEquals(8, barCursor.count());
+
+                // make sure that SHORT_BYTES can be read with a reader
+                var barReader = barCursor.getReader();
+                var barValue = new byte[(int)barCursor.count()];
+                barReader.readFully(barValue);
+                assertEquals("shortstr", new String(barValue));
+            }
         }
     }
 }
