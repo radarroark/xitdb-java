@@ -163,6 +163,16 @@ public class ReadCursor {
             return bytes[0];
         }
 
+        public short readShort() throws Exception {
+            var readSize = 2;
+            var bytes = new byte[readSize];
+            this.readFully(bytes);
+            var buffer = ByteBuffer.allocate(readSize);
+            buffer.put(bytes);
+            buffer.position(0);
+            return buffer.getShort();
+        }
+
         public int readInt() throws Exception {
             var readSize = 4;
             var bytes = new byte[readSize];
