@@ -251,6 +251,39 @@ class DatabaseTest {
                 barReader.readFully(barValue);
                 assertEquals("shortstr", new String(barValue));
             }
+
+            // if error in ctx, db doesn't change
+            {
+                var sizeBefore = core.length();
+
+                try {
+                    rootCursor.writePath(new Database.PathPart[]{
+                        new Database.ArrayListInit(),
+                        new Database.ArrayListAppend(),
+                        new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                        new Database.HashMapInit(),
+                        new Database.HashMapGet(new Database.HashMapGetValue(fooKey)),
+                        new Database.Context((cursor) -> {
+                            var writer = cursor.getWriter();
+                            writer.write("this value won't be visible".getBytes());
+                            writer.finish();
+                            throw new Exception();
+                        })
+                    });
+                } catch (Exception e) {}
+
+                // read foo
+                var valueCursor = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.HashMapGet(new Database.HashMapGetValue(fooKey)),
+                });
+                var value = valueCursor.readBytes(MAX_READ_BYTES);
+                assertEquals("baz", new String(value));
+
+                // verify that the db is properly truncated back to its original size after error
+                var sizeAfter = core.length();
+                assertEquals(sizeBefore, sizeAfter);
+            }
         }
     }
 }

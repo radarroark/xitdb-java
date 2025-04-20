@@ -189,6 +189,7 @@ public class Database {
             if (this.header.hashSize() != hasher.md().getDigestLength()) {
                 throw new InvalidHashSizeException();
             }
+            truncate();
         }
 
         this.txStart = null;
@@ -205,6 +206,30 @@ public class Database {
         var writer = this.core.getWriter();
         writer.write(header.toBytes());
         return header;
+    }
+
+    private void truncate() throws IOException, DatabaseException {
+        if (this.header.tag() != Tag.ARRAY_LIST) return;
+
+        var rootCursor = rootCursor();
+        var listSize = rootCursor.count();
+
+        if (listSize == 0) return;
+
+        this.core.seek(DATABASE_START + ArrayListHeader.length);
+        var reader = this.core.getReader();
+        var headerFileSize = reader.readLong();
+
+        if (headerFileSize == 0) return;
+
+        var fileSize = this.core.length();
+
+        if (fileSize == headerFileSize) return;
+
+        // ignore error because the file may be open in read-only mode
+        try {
+            this.core.setLength(headerFileSize);
+        } catch (IOException e) {}
     }
 
     private byte[] checkHash(byte[] hash) throws InvalidHashSizeException {
@@ -507,7 +532,11 @@ public class Database {
                     try {
                         context.function().run(nextCursor);
                     } catch (Exception e) {
-                        // TODO: truncate
+                        // since an error occured, there may be inaccessible
+                        // junk at the end of the db, so delete it if possible
+                        try {
+                            truncate();
+                        } catch (Exception e2) {}
                         throw e;
                     }
                     return nextCursor.slotPtr;
