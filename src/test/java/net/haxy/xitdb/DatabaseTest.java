@@ -125,16 +125,16 @@ class DatabaseTest {
                         var ch = new byte[1];
                         barReader.seek(0);
 
-                        barReader.read(ch);
+                        barReader.readFully(ch);
                         assertEquals("b", new String(ch));
 
-                        barReader.read(ch);
+                        barReader.readFully(ch);
                         assertEquals("a", new String(ch));
 
-                        barReader.read(ch);
+                        barReader.readFully(ch);
                         assertEquals("r", new String(ch));
 
-                        assertEquals(0, barReader.read(ch));
+                        assertThrows(Database.EndOfStreamException.class, () -> barReader.readFully(ch));
 
                         barReader.seek(1);
                         assertEquals('a', (char)barReader.readByte());
