@@ -18,7 +18,7 @@ class DatabaseTest {
 
         try (var raf = new RandomAccessFile(file, "rw")) {
             var core = new CoreFile(raf);
-            var hash = new Hash(MessageDigest.getInstance("SHA-1"), 0);
+            var hash = new Hash(MessageDigest.getInstance("SHA-1"));
             testLowLevelApi(core, hash);
         }
     }

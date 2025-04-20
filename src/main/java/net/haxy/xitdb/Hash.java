@@ -4,6 +4,10 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 
 public record Hash(MessageDigest hasher, int id) {
+    public Hash(MessageDigest hasher) {
+        this(hasher, 0);
+    }
+
     public static int stringToId(String hashIdName) {
         var bytes = hashIdName.getBytes();
         if (bytes.length != 4) {
