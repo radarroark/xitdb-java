@@ -9,7 +9,7 @@ import java.io.RandomAccessFile;
 import java.security.MessageDigest;
 
 class DatabaseTest {
-    static int MAX_READ_BYTES = 1024;
+    static long MAX_READ_BYTES = 1024;
 
     @Test
     void testLowLevelApi() throws Exception {
@@ -277,12 +277,22 @@ class DatabaseTest {
                     new Database.ArrayListGet(-1),
                     new Database.HashMapGet(new Database.HashMapGetValue(fooKey)),
                 });
-                var value = valueCursor.readBytes(MAX_READ_BYTES);
+                var value = valueCursor.readBytes(null); // make sure null max size works
                 assertEquals("baz", new String(value));
 
                 // verify that the db is properly truncated back to its original size after error
                 var sizeAfter = core.length();
                 assertEquals(sizeBefore, sizeAfter);
+            }
+
+            // read foo into buffer
+            {
+                var barCursor = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.HashMapGet(new Database.HashMapGetValue(fooKey))
+                });
+                var barBufferValue = barCursor.readBytes(MAX_READ_BYTES);
+                assertEquals("baz", new String(barBufferValue));
             }
         }
     }

@@ -39,7 +39,7 @@ public class ReadCursor {
         }
     }
 
-    public byte[] readBytes(long maxSize) throws IOException, Database.DatabaseException {
+    public byte[] readBytes(Long maxSizeMaybe) throws IOException, Database.DatabaseException {
         var reader = this.db.core.getReader();
 
         switch (this.slotPtr.slot().tag()) {
@@ -50,7 +50,7 @@ public class ReadCursor {
                 this.db.core.seek(this.slotPtr.slot().value());
                 var valueSize = reader.readLong();
 
-                if (valueSize > maxSize) {
+                if (maxSizeMaybe != null && valueSize > maxSizeMaybe) {
                     throw new Database.StreamTooLongException();
                 }
 
@@ -69,7 +69,7 @@ public class ReadCursor {
                     valueSize += 1;
                 }
 
-                if (valueSize > maxSize) {
+                if (maxSizeMaybe != null && valueSize > maxSizeMaybe) {
                     throw new Database.StreamTooLongException();
                 }
 
