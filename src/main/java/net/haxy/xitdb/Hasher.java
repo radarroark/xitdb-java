@@ -3,9 +3,9 @@ package net.haxy.xitdb;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 
-public record Hash(MessageDigest hasher, int id) {
-    public Hash(MessageDigest hasher) {
-        this(hasher, 0);
+public record Hasher(MessageDigest md, int id) {
+    public Hasher(MessageDigest md) {
+        this(md, 0);
     }
 
     public static int stringToId(String hashIdName) {

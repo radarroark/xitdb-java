@@ -18,32 +18,32 @@ class DatabaseTest {
 
         try (var ram = new RandomAccessMemory()) {
             var core = new CoreMemory(ram);
-            var hash = new Hash(MessageDigest.getInstance("SHA-1"));
-            testLowLevelApi(core, hash);
+            var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
+            testLowLevelApi(core, hasher);
         }
 
         try (var raf = new RandomAccessFile(file, "rw")) {
             var core = new CoreFile(raf);
-            var hash = new Hash(MessageDigest.getInstance("SHA-1"));
-            testLowLevelApi(core, hash);
+            var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
+            testLowLevelApi(core, hasher);
         }
     }
 
-    void testLowLevelApi(Core core, Hash hash) throws Exception {
+    void testLowLevelApi(Core core, Hasher hasher) throws Exception {
         // open and re-open database
         {
             // make empty database
             core.setLength(0);
-            new Database(core, hash);
+            new Database(core, hasher);
 
             // re-open without error
-            var db = new Database(core, hash);
+            var db = new Database(core, hasher);
             var writer = db.core.getWriter();
             db.core.seek(0);
             writer.writeByte('g');
 
             // re-open with error
-            assertThrows(Database.InvalidDatabaseException.class, () -> new Database(core, hash));
+            assertThrows(Database.InvalidDatabaseException.class, () -> new Database(core, hasher));
 
             // modify the version
             db.core.seek(0);
@@ -52,30 +52,30 @@ class DatabaseTest {
             writer.writeShort(Database.VERSION + 1);
 
             // re-open with error
-            assertThrows(Database.InvalidVersionException.class, () -> new Database(core, hash));
+            assertThrows(Database.InvalidVersionException.class, () -> new Database(core, hasher));
         }
 
         // save hash id in header
         {
-            var hashId = Hash.stringToId("sha1");
-            var hashWithHashId = new Hash(MessageDigest.getInstance("SHA-1"), hashId);
+            var hashId = Hasher.stringToId("sha1");
+            var hasherWithHashId = new Hasher(MessageDigest.getInstance("SHA-1"), hashId);
 
             // make empty database
             core.setLength(0);
-            var db = new Database(core, hashWithHashId);
+            var db = new Database(core, hasherWithHashId);
 
             assertEquals(hashId, db.header.hashId());
-            assertEquals("sha1", Hash.idToString(db.header.hashId()));
+            assertEquals("sha1", Hasher.idToString(db.header.hashId()));
         }
 
         // array_list of hash_maps
         {
             core.setLength(0);
-            var db = new Database(core, hash);
+            var db = new Database(core, hasher);
             var rootCursor = db.rootCursor();
 
             // write foo -> bar with a writer
-            var fooKey = db.hasher.digest("foo".getBytes());
+            var fooKey = db.md.digest("foo".getBytes());
             rootCursor.writePath(new Database.PathPart[]{
                 new Database.ArrayListInit(),
                 new Database.ArrayListAppend(),

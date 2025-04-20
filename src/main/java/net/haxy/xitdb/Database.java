@@ -8,7 +8,7 @@ import java.util.Arrays;
 
 public class Database {
     Core core;
-    MessageDigest hasher;
+    MessageDigest md;
     Header header;
     Long txStart;
 
@@ -176,17 +176,17 @@ public class Database {
 
     // init
 
-    public Database(Core core, Hash hash) throws IOException, DatabaseException {
+    public Database(Core core, Hasher hasher) throws IOException, DatabaseException {
         this.core = core;
-        this.hasher = hash.hasher();
+        this.md = hasher.md();
 
         core.seek(0);
         if (core.length() == 0) {
-            this.header = this.writeHeader(hash);
+            this.header = this.writeHeader(hasher);
         } else {
             this.header = Header.read(core);
             this.header.validate();
-            if (this.header.hashSize() != hash.hasher().getDigestLength()) {
+            if (this.header.hashSize() != hasher.md().getDigestLength()) {
                 throw new InvalidHashSizeException();
             }
         }
@@ -200,8 +200,8 @@ public class Database {
 
     // private
 
-    private Header writeHeader(Hash hash) throws IOException {
-        var header = new Header(hash.id(), (short)hash.hasher().getDigestLength(), VERSION, Tag.NONE, MAGIC_NUMBER);
+    private Header writeHeader(Hasher hasher) throws IOException {
+        var header = new Header(hasher.id(), (short)hasher.md().getDigestLength(), VERSION, Tag.NONE, MAGIC_NUMBER);
         var writer = this.core.getWriter();
         writer.write(header.toBytes());
         return header;
