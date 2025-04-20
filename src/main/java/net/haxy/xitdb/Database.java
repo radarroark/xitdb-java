@@ -12,8 +12,6 @@ public class Database {
     Header header;
     Long txStart;
 
-    public static record Options (Hash hash) {}
-
     public static final short VERSION = 0;
     public static final byte[] MAGIC_NUMBER = "xit".getBytes();
     public static final int DATABASE_START = Header.length;
@@ -175,17 +173,17 @@ public class Database {
 
     // init
 
-    public Database(Core core, Options opts) throws Exception {
+    public Database(Core core, Hash hash) throws Exception {
         this.core = core;
-        this.hasher = opts.hash().hasher();
+        this.hasher = hash.hasher();
 
         core.seek(0);
         if (core.length() == 0) {
-            this.header = this.writeHeader(opts);
+            this.header = this.writeHeader(hash);
         } else {
             this.header = Header.read(core);
             this.header.validate();
-            if (this.header.hashSize() != opts.hash().hasher().getDigestLength()) {
+            if (this.header.hashSize() != hash.hasher().getDigestLength()) {
                 throw new InvalidHashSizeException();
             }
         }
@@ -199,8 +197,8 @@ public class Database {
 
     // private
 
-    private Header writeHeader(Options opts) throws IOException {
-        var header = new Header(opts.hash.id(), (short)opts.hash.hasher().getDigestLength(), VERSION, Tag.NONE, MAGIC_NUMBER);
+    private Header writeHeader(Hash hash) throws IOException {
+        var header = new Header(hash.id(), (short)hash.hasher().getDigestLength(), VERSION, Tag.NONE, MAGIC_NUMBER);
         var writer = this.core.getWriter();
         writer.write(header.toBytes());
         return header;
