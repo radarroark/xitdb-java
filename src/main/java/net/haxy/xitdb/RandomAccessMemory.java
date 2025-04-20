@@ -29,20 +29,23 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
     }
 
     public void seek(int pos) {
-        this.position = pos;
+        if (pos > this.count) {
+            this.position = this.count;
+        } else {
+            this.position = pos;
+        }
     }
 
     public void setLength(int len) throws IOException {
         if (len == 0) {
             this.reset();
+            this.position = 0;
         } else {
             if (len > this.size()) throw new IllegalArgumentException();
             var bytes = this.toByteArray();
             this.reset();
+            this.position = 0;
             this.write(Arrays.copyOfRange(bytes, 0, len));
-        }
-        if (this.position > len) {
-            this.position = len;
         }
     }
 
