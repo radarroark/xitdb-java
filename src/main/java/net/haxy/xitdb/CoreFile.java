@@ -38,7 +38,7 @@ public class CoreFile implements Core {
     }
 
     @Override
-    public void setLength(long len) throws Exception {
+    public void setLength(long len) throws IOException {
         this.file.setLength(len);
     }
     

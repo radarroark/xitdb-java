@@ -157,23 +157,26 @@ public class Database {
         }
     }
 
-    public static class InvalidDatabaseException extends Exception {}
-    public static class InvalidVersionException extends Exception {}
-    public static class InvalidHashSizeException extends Exception {}
-    public static class KeyNotFoundException extends Exception {}
-    public static class WriteNotAllowedException extends Exception {}
-    public static class UnexpectedTagException extends Exception {}
-    public static class CursorNotWriteableException extends Exception {}
-    public static class ExpectedTxStartException extends Exception {}
-    public static class KeyOffsetExceededException extends Exception {}
-    public static class PathPartMustBeAtEndException extends Exception {}
-    public static class StreamTooLongException extends Exception {}
-    public static class EndOfStreamException extends Exception {}
-    public static class InvalidOffsetException extends Exception {}
+    public static class DatabaseException extends Exception {}
+    public static class NotImplementedException extends DatabaseException {}
+    public static class UnreachableException extends DatabaseException {}
+    public static class InvalidDatabaseException extends DatabaseException {}
+    public static class InvalidVersionException extends DatabaseException {}
+    public static class InvalidHashSizeException extends DatabaseException {}
+    public static class KeyNotFoundException extends DatabaseException {}
+    public static class WriteNotAllowedException extends DatabaseException {}
+    public static class UnexpectedTagException extends DatabaseException {}
+    public static class CursorNotWriteableException extends DatabaseException {}
+    public static class ExpectedTxStartException extends DatabaseException {}
+    public static class KeyOffsetExceededException extends DatabaseException {}
+    public static class PathPartMustBeAtEndException extends DatabaseException {}
+    public static class StreamTooLongException extends DatabaseException {}
+    public static class EndOfStreamException extends DatabaseException {}
+    public static class InvalidOffsetException extends DatabaseException {}
 
     // init
 
-    public Database(Core core, Hash hash) throws Exception {
+    public Database(Core core, Hash hash) throws IOException, DatabaseException {
         this.core = core;
         this.hasher = hash.hasher();
 
@@ -517,7 +520,7 @@ public class Database {
 
     // hash_map
 
-    private SlotPointer readMapSlot(long indexPos, byte[] keyHash, byte keyOffset, WriteMode writeMode, boolean isTopLevel, HashMapGetTarget target) throws Exception {
+    private SlotPointer readMapSlot(long indexPos, byte[] keyHash, byte keyOffset, WriteMode writeMode, boolean isTopLevel, HashMapGetTarget target) throws IOException, DatabaseException {
         if (keyOffset > (this.header.hashSize() * 8) / BIT_COUNT) {
             throw new KeyOffsetExceededException();
         }
@@ -559,7 +562,7 @@ public class Database {
                             case HashMapGetValue valueTarget -> new SlotPointer(valueSlotPos, kvPair.valueSlot());
                         };
                     }
-                    default -> throw new Exception();
+                    default -> throw new UnreachableException();
                 }
             }
             case INDEX -> {
@@ -645,7 +648,7 @@ public class Database {
                             writer.write(new Slot(nextIndexPos, Tag.INDEX).toBytes());
                             return nextSlotPtr;
                         }
-                        default -> throw new Exception();
+                        default -> throw new UnreachableException();
                     }
                 }
             }
@@ -657,7 +660,7 @@ public class Database {
 
     public static record ArrayListAppendResult(ArrayListHeader header, SlotPointer slotPtr) {}
 
-    private ArrayListAppendResult readArrayListSlotAppend(long indexStart, WriteMode writeMode, boolean isTopLevel) throws Exception {
+    private ArrayListAppendResult readArrayListSlotAppend(long indexStart, WriteMode writeMode, boolean isTopLevel) throws IOException, DatabaseException {
         var reader = this.core.getReader();
         var writer = this.core.getWriter();
 
@@ -686,7 +689,7 @@ public class Database {
         return new ArrayListAppendResult(new ArrayListHeader(indexPos, header.size() + 1), slotPtr);
     }
 
-    private SlotPointer readArrayListSlot(long indexPos, long key, byte shift, WriteMode writeMode, boolean isTopLevel) throws Exception {
+    private SlotPointer readArrayListSlot(long indexPos, long key, byte shift, WriteMode writeMode, boolean isTopLevel) throws IOException, DatabaseException {
         var reader = this.core.getReader();
 
         var i = (key >> (shift * BIT_COUNT)) & MASK;
@@ -723,7 +726,7 @@ public class Database {
                         writer.write(new Slot(nextIndexPos, Tag.INDEX).toBytes());
                         return readArrayListSlot(nextIndexPos, key, (byte)(shift - 1), writeMode, isTopLevel);
                     }
-                    default -> throw new Exception();
+                    default -> throw new UnreachableException();
                 }
             }
             case INDEX -> {

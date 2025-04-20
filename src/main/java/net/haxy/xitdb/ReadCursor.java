@@ -1,5 +1,6 @@
 package net.haxy.xitdb;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
@@ -34,7 +35,7 @@ public class ReadCursor {
         }
     }
 
-    public byte[] readBytes(long maxSize) throws Exception {
+    public byte[] readBytes(long maxSize) throws IOException, Database.DatabaseException {
         var reader = this.db.core.getReader();
 
         switch (this.slotPtr.slot().tag()) {
@@ -71,7 +72,7 @@ public class ReadCursor {
         }
     }
 
-    public Reader getReader() throws Exception {
+    public Reader getReader() throws IOException, Database.DatabaseException {
         var reader = this.db.core.getReader();
 
         switch (this.slotPtr.slot().tag()) {
@@ -96,7 +97,7 @@ public class ReadCursor {
         }
     }
 
-    public long count() throws Exception {
+    public long count() throws IOException, Database.DatabaseException {
         var reader = this.db.core.getReader();
         switch (this.slotPtr.slot().tag()) {
             case NONE -> {
@@ -109,7 +110,7 @@ public class ReadCursor {
                 var header = Database.ArrayListHeader.fromBytes(headerBytes);
                 return header.size();
             }
-            case LINKED_ARRAY_LIST -> throw new Exception("Not implemented");
+            case LINKED_ARRAY_LIST -> throw new Database.NotImplementedException();
             case BYTES -> {
                 this.db.core.seek(this.slotPtr.slot().value());
                 return reader.readLong();
@@ -139,7 +140,7 @@ public class ReadCursor {
             this.relativePosition = relativePosition;
         }
 
-        public int read(byte[] buffer) throws Exception {
+        public int read(byte[] buffer) throws IOException, Database.DatabaseException {
             if (this.size < this.relativePosition) throw new Database.EndOfStreamException();
             this.parent.db.core.seek(this.startPosition + this.relativePosition);
             var readSize = Math.min(buffer.length, (int) (this.size - this.relativePosition));
@@ -149,7 +150,7 @@ public class ReadCursor {
             return readSize;
         }
 
-        public void readFully(byte[] bytes) throws Exception {
+        public void readFully(byte[] bytes) throws IOException, Database.DatabaseException {
             if (this.size < this.relativePosition || this.size - this.relativePosition < bytes.length) throw new Database.EndOfStreamException();
             this.parent.db.core.seek(this.startPosition + this.relativePosition);
             var reader = this.parent.db.core.getReader();
@@ -157,13 +158,13 @@ public class ReadCursor {
             this.relativePosition += bytes.length;
         }
 
-        public byte readByte() throws Exception {
+        public byte readByte() throws IOException, Database.DatabaseException {
             var bytes = new byte[1];
             this.readFully(bytes);
             return bytes[0];
         }
 
-        public short readShort() throws Exception {
+        public short readShort() throws IOException, Database.DatabaseException {
             var readSize = 2;
             var bytes = new byte[readSize];
             this.readFully(bytes);
@@ -173,7 +174,7 @@ public class ReadCursor {
             return buffer.getShort();
         }
 
-        public int readInt() throws Exception {
+        public int readInt() throws IOException, Database.DatabaseException {
             var readSize = 4;
             var bytes = new byte[readSize];
             this.readFully(bytes);
@@ -183,7 +184,7 @@ public class ReadCursor {
             return buffer.getInt();
         }
 
-        public long readLong() throws Exception {
+        public long readLong() throws IOException, Database.DatabaseException {
             var readSize = 8;
             var bytes = new byte[readSize];
             this.readFully(bytes);

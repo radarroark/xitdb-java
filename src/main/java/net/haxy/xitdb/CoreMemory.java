@@ -2,6 +2,7 @@ package net.haxy.xitdb;
 
 import java.io.DataInput;
 import java.io.DataOutput;
+import java.io.IOException;
 
 public class CoreMemory implements Core {
     RandomAccessMemory memory;
@@ -21,22 +22,22 @@ public class CoreMemory implements Core {
     }
 
     @Override
-    public long length() throws Exception {
+    public long length() throws IOException {
         return this.memory.size();
     }
 
     @Override
-    public void seek(long pos) throws Exception {
+    public void seek(long pos) throws IOException {
         this.memory.seek((int)pos);
     }
 
     @Override
-    public long position() throws Exception {
+    public long position() throws IOException {
         return this.memory.position;
     }
 
     @Override
-    public void setLength(long len) throws Exception {
+    public void setLength(long len) throws IOException {
         this.memory.setLength((int)len);
     }
 }

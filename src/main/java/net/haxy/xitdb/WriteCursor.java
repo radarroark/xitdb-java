@@ -1,5 +1,7 @@
 package net.haxy.xitdb;
 
+import java.io.IOException;
+
 public class WriteCursor extends ReadCursor {
     public WriteCursor(SlotPointer slotPtr, Database db) {
         super(slotPtr, db);
@@ -10,7 +12,7 @@ public class WriteCursor extends ReadCursor {
         return new WriteCursor(slotPtr, this.db);
     }
 
-    public Writer getWriter() throws Exception {
+    public Writer getWriter() throws IOException {
         var writer = this.db.core.getWriter();
         this.db.core.seek(this.db.core.length());
         var ptrPos = this.db.core.length();
@@ -35,7 +37,7 @@ public class WriteCursor extends ReadCursor {
             this.relativePosition = relativePosition;
         }
 
-        public void write(byte[] buffer) throws Exception {
+        public void write(byte[] buffer) throws IOException, Database.DatabaseException {
             if (this.size < this.relativePosition) throw new Database.EndOfStreamException();
             this.parent.db.core.seek(this.startPosition + this.relativePosition);
             var writer = this.parent.db.core.getWriter();
@@ -46,7 +48,7 @@ public class WriteCursor extends ReadCursor {
             }
         }
 
-        public void finish() throws Exception {
+        public void finish() throws IOException, Database.DatabaseException {
             var writer = this.parent.db.core.getWriter();
 
             this.parent.db.core.seek(this.slot.value());
