@@ -16,6 +16,12 @@ class DatabaseTest {
         var file = File.createTempFile("database", "");
         file.deleteOnExit();
 
+        try (var ram = new RandomAccessMemory()) {
+            var core = new CoreMemory(ram);
+            var hash = new Hash(MessageDigest.getInstance("SHA-1"));
+            testLowLevelApi(core, hash);
+        }
+
         try (var raf = new RandomAccessFile(file, "rw")) {
             var core = new CoreFile(raf);
             var hash = new Hash(MessageDigest.getInstance("SHA-1"));
