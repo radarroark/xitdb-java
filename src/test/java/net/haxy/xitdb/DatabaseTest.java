@@ -294,6 +294,47 @@ class DatabaseTest {
                 var barBufferValue = barCursor.readBytes(MAX_READ_BYTES);
                 assertEquals("baz", new String(barBufferValue));
             }
+
+            // write bar and get a pointer to it
+            var barSlot = rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListAppend(),
+                new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                new Database.HashMapInit(),
+                new Database.HashMapGet(new Database.HashMapGetValue(barKey)),
+                new Database.WriteData(new Database.Bytes("bar".getBytes()))
+            }).slot();
+
+            // overwrite foo -> bar using the bar pointer
+            rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListAppend(),
+                new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                new Database.HashMapInit(),
+                new Database.HashMapGet(new Database.HashMapGetValue(fooKey)),
+                new Database.WriteData(barSlot)
+            });
+            var barCursor = rootCursor.readPath(new Database.PathPart[]{
+                new Database.ArrayListGet(-1),
+                new Database.HashMapGet(new Database.HashMapGetValue(fooKey))
+            });
+            var barValue = barCursor.readBytes(MAX_READ_BYTES);
+            assertEquals("bar", new String(barValue));
+
+            // can still read the old value
+            var bazCursor = rootCursor.readPath(new Database.PathPart[]{
+                new Database.ArrayListGet(-2),
+                new Database.HashMapGet(new Database.HashMapGetValue(fooKey))
+            });
+            var bazValue = bazCursor.readBytes(MAX_READ_BYTES);
+            assertEquals("baz", new String(bazValue));
+
+            // key not found
+            var notFoundKey = db.md.digest("this doesn't exist".getBytes());
+            assertEquals(null, rootCursor.readPath(new Database.PathPart[]{
+                new Database.ArrayListGet(-2),
+                new Database.HashMapGet(new Database.HashMapGetValue(notFoundKey))
+            }));
         }
     }
 }
