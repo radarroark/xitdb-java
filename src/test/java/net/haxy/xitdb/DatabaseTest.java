@@ -594,6 +594,100 @@ class DatabaseTest {
                 new Database.ArrayListGet(-1),
                 new Database.HashMapGet(new Database.HashMapGetValue(fooKey)),
             }));
+
+            // non-top-level list
+            {
+                // write apple
+                rootCursor.writePath(new Database.PathPart[]{
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                    new Database.HashMapInit(),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(new Database.Bytes("apple".getBytes()))
+                });
+
+                // read apple
+                var appleCursor = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
+                    new Database.ArrayListGet(-1),
+                });
+                var appleValue = appleCursor.readBytes(MAX_READ_BYTES);
+                assertEquals("apple", new String(appleValue));
+
+                // write banana
+                rootCursor.writePath(new Database.PathPart[]{
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                    new Database.HashMapInit(),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(new Database.Bytes("banana".getBytes()))
+                });
+
+                // read banana
+                var bananaCursor = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
+                    new Database.ArrayListGet(-1),
+                });
+                var bananaValue = bananaCursor.readBytes(MAX_READ_BYTES);
+                assertEquals("banana", new String(bananaValue));
+
+                // can't read banana in older array_list
+                assertEquals(null, rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-2),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
+                    new Database.ArrayListGet(1),
+                }));
+
+                // write pear
+                rootCursor.writePath(new Database.PathPart[]{
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                    new Database.HashMapInit(),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(new Database.Bytes("pear".getBytes()))
+                });
+
+                // write grape
+                rootCursor.writePath(new Database.PathPart[]{
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                    new Database.HashMapInit(),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(new Database.Bytes("grape".getBytes()))
+                });
+
+                // read pear
+                var pearCursor = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
+                    new Database.ArrayListGet(-2),
+                });
+                var pearValue = pearCursor.readBytes(MAX_READ_BYTES);
+                assertEquals("pear", new String(pearValue));
+
+                // read grape
+                var grapeCursor = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
+                    new Database.ArrayListGet(-1),
+                });
+                var grapeValue = grapeCursor.readBytes(MAX_READ_BYTES);
+                assertEquals("grape", new String(grapeValue));
+            }
         }
     }
 }
