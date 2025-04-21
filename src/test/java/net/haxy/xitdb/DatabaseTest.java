@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.File;
 import java.io.RandomAccessFile;
+import java.math.BigInteger;
 import java.security.MessageDigest;
 
 class DatabaseTest {
@@ -403,6 +404,115 @@ class DatabaseTest {
             });
             var helloValue2 = helloCursor2.readBytes(MAX_READ_BYTES);
             assertEquals("hello", new String(helloValue2));
+
+            // remove the conflicting keys
+            {
+                // foo's slot is an INDEX slot due to the conflict
+                {
+                    var mapCursor = rootCursor.readPath(new Database.PathPart[]{
+                        new Database.ArrayListGet(-1),
+                    });
+                    var indexPos = mapCursor.slot().value();
+                    assertEquals(Tag.HASH_MAP, mapCursor.slot().tag());
+
+                    var reader = core.getReader();
+
+                    var i = new BigInteger(fooKey).and(Database.BIG_MASK).intValueExact();
+                    var slotPos = indexPos + (Slot.length * i);
+                    core.seek(slotPos);
+                    var slotBytes = new byte[Slot.length];
+                    reader.readFully(slotBytes);
+                    var slot = Slot.fromBytes(slotBytes);
+
+                    assertEquals(Tag.INDEX, slot.tag());
+                }
+
+                // remove the small conflict key
+                rootCursor.writePath(new Database.PathPart[]{
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                    new Database.HashMapInit(),
+                    new Database.HashMapRemove(smallConflictKey)
+                });
+
+                // the conflict key still exists in history
+                assertNotEquals(null, rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-2),
+                    new Database.HashMapGet(new Database.HashMapGetValue(smallConflictKey)),
+                }));
+
+                // the conflict key doesn't exist in the latest moment
+                assertEquals(null, rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.HashMapGet(new Database.HashMapGetValue(smallConflictKey)),
+                }));
+
+                // the other conflict key still exists
+                assertNotEquals(null, rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.HashMapGet(new Database.HashMapGetValue(conflictKey)),
+                }));
+
+                // foo's slot is still an INDEX slot due to the other conflicting key
+                {
+                    var mapCursor = rootCursor.readPath(new Database.PathPart[]{
+                        new Database.ArrayListGet(-1),
+                    });
+                    var indexPos = mapCursor.slot().value();
+                    assertEquals(Tag.HASH_MAP, mapCursor.slot().tag());
+
+                    var reader = core.getReader();
+
+                    var i = new BigInteger(fooKey).and(Database.BIG_MASK).intValueExact();
+                    var slotPos = indexPos + (Slot.length * i);
+                    core.seek(slotPos);
+                    var slotBytes = new byte[Slot.length];
+                    reader.readFully(slotBytes);
+                    var slot = Slot.fromBytes(slotBytes);
+
+                    assertEquals(Tag.INDEX, slot.tag());
+                }
+
+                // remove the conflict key
+                rootCursor.writePath(new Database.PathPart[]{
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                    new Database.HashMapInit(),
+                    new Database.HashMapRemove(conflictKey)
+                });
+
+                // the conflict keys don't exist in the latest moment
+                assertEquals(null, rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.HashMapGet(new Database.HashMapGetValue(smallConflictKey)),
+                }));
+                assertEquals(null, rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.HashMapGet(new Database.HashMapGetValue(conflictKey)),
+                }));
+
+                // foo's slot is now a KV_PAIR slot, becaus the branch was shortened
+                {
+                    var mapCursor = rootCursor.readPath(new Database.PathPart[]{
+                        new Database.ArrayListGet(-1),
+                    });
+                    var indexPos = mapCursor.slot().value();
+                    assertEquals(Tag.HASH_MAP, mapCursor.slot().tag());
+
+                    var reader = core.getReader();
+
+                    var i = new BigInteger(fooKey).and(Database.BIG_MASK).intValueExact();
+                    var slotPos = indexPos + (Slot.length * i);
+                    core.seek(slotPos);
+                    var slotBytes = new byte[Slot.length];
+                    reader.readFully(slotBytes);
+                    var slot = Slot.fromBytes(slotBytes);
+
+                    assertEquals(Tag.KV_PAIR, slot.tag());
+                }
+            }
         }
     }
 }

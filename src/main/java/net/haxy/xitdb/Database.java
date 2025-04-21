@@ -128,12 +128,13 @@ public class Database {
         }
     }
 
-    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, HashMapInit, HashMapGet, WriteData, Context {}
+    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, HashMapInit, HashMapGet, HashMapRemove, WriteData, Context {}
     public static record ArrayListInit() implements PathPart {}
     public static record ArrayListGet(long index) implements PathPart {}
     public static record ArrayListAppend() implements PathPart {}
     public static record HashMapInit() implements PathPart {}
     public static record HashMapGet(HashMapGetTarget target) implements PathPart {}
+    public static record HashMapRemove(byte[] hash) implements PathPart {}
     public static record WriteData(WriteableData data) implements PathPart {}
     public static record Context(ContextFunction function) implements PathPart {}
 
@@ -484,6 +485,19 @@ public class Database {
 
                     return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
                 }
+                case HashMapRemove hashMapRemove -> {
+                    if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
+
+                    switch (slotPtr.slot().tag()) {
+                        case NONE -> throw new KeyNotFoundException();
+                        case HASH_MAP -> {}
+                        default -> throw new UnexpectedTagException();
+                    }
+
+                    removeMapSlot(slotPtr.slot().value(), checkHash(hashMapRemove.hash()), (byte)0, isTopLevel);
+
+                    return slotPtr;
+                }
                 case WriteData writeData -> {
                     if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
 
@@ -683,6 +697,113 @@ public class Database {
             }
             default -> throw new UnexpectedTagException();
         }
+    }
+
+    private Slot removeMapSlot(long indexPos, byte[] keyHash, byte keyOffset, boolean isTopLevel) throws IOException, DatabaseException {
+        if (keyOffset > (this.header.hashSize() * 8) / BIT_COUNT) {
+            throw new KeyOffsetExceededException();
+        }
+
+        var reader = this.core.getReader();
+        var writer = this.core.getWriter();
+
+        // read block
+        var slotBlock = new Slot[SLOT_COUNT];
+        this.core.seek(indexPos);
+        var indexBlock = new byte[INDEX_BLOCK_SIZE];
+        reader.readFully(indexBlock);
+        var buffer = ByteBuffer.wrap(indexBlock);
+        for (int i = 0; i < slotBlock.length; i++) {
+            var slotBytes = new byte[Slot.length];
+            buffer.get(slotBytes);
+            slotBlock[i] = Slot.fromBytes(slotBytes);
+        }
+
+        // get the current slot
+        var i = new BigInteger(keyHash).shiftRight(keyOffset * BIT_COUNT).and(BIG_MASK).intValueExact();
+        var slotPos = indexPos + (Slot.length * i);
+        var slot = slotBlock[i];
+
+        // get the slot that will replace the current slot
+        var nextSlot = switch (slot.tag()) {
+            case NONE -> throw new KeyNotFoundException();
+            case INDEX -> removeMapSlot(slot.value(), keyHash, (byte) (keyOffset + 1), isTopLevel);
+            case KV_PAIR -> {
+                this.core.seek(slot.value());
+                var kvPairBytes = new byte[KeyValuePair.length(this.header.hashSize())];
+                reader.readFully(kvPairBytes);
+                var kvPair = KeyValuePair.fromBytes(kvPairBytes, this.header.hashSize());
+                if (Arrays.equals(kvPair.hash(), keyHash)) {
+                    yield new Slot();
+                } else {
+                    throw new KeyNotFoundException();
+                }
+            }
+            default -> throw new UnexpectedTagException();
+        };
+
+        // if we're the root node, just write the new slot and finish
+        if (keyOffset == 0) {
+            this.core.seek(slotPos);
+            writer.write(nextSlot.toBytes());
+            return new Slot(indexPos, Tag.INDEX);
+        }
+
+        // get slot to return if there is only one used slot
+        // in this index block
+        var slotToReturnMaybe = new Slot();
+        slotBlock[i] = nextSlot;
+        for (Slot blockSlot : slotBlock) {
+            if (blockSlot.tag() == Tag.NONE) continue;
+
+            // if there is already a slot to return, that
+            // means there is more than one used slot in this
+            // index block, so we can't return just a single slot
+            if (slotToReturnMaybe != null) {
+                if (slotToReturnMaybe.tag() != Tag.NONE) {
+                    slotToReturnMaybe = null;
+                    break;
+                }
+            }
+
+            slotToReturnMaybe = blockSlot;
+        }
+
+        // if there were either no used slots, or a single KV_PAIR
+        // slot, this index block doesn't need to exist anymore
+        if (slotToReturnMaybe != null) {
+            switch (slotToReturnMaybe.tag()) {
+                case Tag.NONE, Tag.KV_PAIR -> {
+                    return slotToReturnMaybe;
+                }
+                default -> {}
+            }
+        }
+
+        // there was more than one used slot, or a single INDEX slot,
+        // so we must keep this index block
+
+        if (!isTopLevel) {
+            if (this.txStart != null) {
+                if (indexPos < this.txStart) {
+                    // copy index block to the end
+                    this.core.seek(this.core.length());
+                    var nextIndexPos = this.core.length();
+                    writer.write(indexBlock);
+                    // update the slot
+                    var nextSlotPos = nextIndexPos + (Slot.length * i);
+                    this.core.seek(nextSlotPos);
+                    writer.write(nextSlot.toBytes());
+                    return new Slot(nextIndexPos, Tag.INDEX);
+                }
+            } else if (this.header.tag() == Tag.ARRAY_LIST) {
+                throw new ExpectedTxStartException();
+            }
+        }
+
+        this.core.seek(slotPos);
+        writer.write(nextSlot.toBytes());
+        return new Slot(indexPos, Tag.INDEX);
     }
 
     // array_list
