@@ -335,6 +335,74 @@ class DatabaseTest {
                 new Database.ArrayListGet(-2),
                 new Database.HashMapGet(new Database.HashMapGetValue(notFoundKey))
             }));
+
+            // write key that conflicts with foo the first two bytes
+            var smallConflictKey = db.md.digest("small conflict".getBytes());
+            smallConflictKey[smallConflictKey.length-1] = fooKey[fooKey.length-1];
+            smallConflictKey[smallConflictKey.length-2] = fooKey[fooKey.length-2];
+            rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListAppend(),
+                new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                new Database.HashMapInit(),
+                new Database.HashMapGet(new Database.HashMapGetValue(smallConflictKey)),
+                new Database.WriteData(new Database.Bytes("small".getBytes()))
+            });
+
+            // write key that conflicts with foo the first four bytes
+            var conflictKey = db.md.digest("conflict".getBytes());
+            conflictKey[conflictKey.length-1] = fooKey[fooKey.length-1];
+            conflictKey[conflictKey.length-2] = fooKey[fooKey.length-2];
+            conflictKey[conflictKey.length-3] = fooKey[fooKey.length-3];
+            conflictKey[conflictKey.length-4] = fooKey[fooKey.length-4];
+            rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListAppend(),
+                new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                new Database.HashMapInit(),
+                new Database.HashMapGet(new Database.HashMapGetValue(conflictKey)),
+                new Database.WriteData(new Database.Bytes("hello".getBytes()))
+            });
+
+            // read conflicting key
+            var helloCursor = rootCursor.readPath(new Database.PathPart[]{
+                new Database.ArrayListGet(-1),
+                new Database.HashMapGet(new Database.HashMapGetValue(conflictKey))
+            });
+            var helloValue = helloCursor.readBytes(MAX_READ_BYTES);
+            assertEquals("hello", new String(helloValue));
+
+            // we can still read foo
+            var barCursor2 = rootCursor.readPath(new Database.PathPart[]{
+                new Database.ArrayListGet(-1),
+                new Database.HashMapGet(new Database.HashMapGetValue(fooKey))
+            });
+            var barValue2 = barCursor2.readBytes(MAX_READ_BYTES);
+            assertEquals("bar", new String(barValue2));
+
+            // overwrite conflicting key
+            rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListAppend(),
+                new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                new Database.HashMapInit(),
+                new Database.HashMapGet(new Database.HashMapGetValue(conflictKey)),
+                new Database.WriteData(new Database.Bytes("goodbye".getBytes()))
+            });
+            var goodbyeCursor = rootCursor.readPath(new Database.PathPart[]{
+                new Database.ArrayListGet(-1),
+                new Database.HashMapGet(new Database.HashMapGetValue(conflictKey))
+            });
+            var goodbyeValue = goodbyeCursor.readBytes(MAX_READ_BYTES);
+            assertEquals("goodbye", new String(goodbyeValue));
+
+            // we can still read the old conflicting key
+            var helloCursor2 = rootCursor.readPath(new Database.PathPart[]{
+                new Database.ArrayListGet(-2),
+                new Database.HashMapGet(new Database.HashMapGetValue(conflictKey))
+            });
+            var helloValue2 = helloCursor2.readBytes(MAX_READ_BYTES);
+            assertEquals("hello", new String(helloValue2));
         }
     }
 }
