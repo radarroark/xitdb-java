@@ -344,7 +344,7 @@ public class Database {
                             var nextSlotPtr = new SlotPointer(position, new Slot(arrayListStart, Tag.ARRAY_LIST));
                             this.core.seek(position);
                             writer.write(nextSlotPtr.slot().toBytes());
-                            return readSlotPointer(writeMode, Arrays.copyOfRange(path, 0, path.length), nextSlotPtr);
+                            return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
                         }
                         default -> throw new UnexpectedTagException();
                     }
