@@ -570,6 +570,30 @@ class DatabaseTest {
                 }).readFloat();
                 assertEquals(42.5, intValue);
             }
+
+            // remove foo
+            rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListAppend(),
+                new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                new Database.HashMapInit(),
+                new Database.HashMapRemove(fooKey)
+            });
+
+            // remove key that does not exist
+            assertThrows(Database.KeyNotFoundException.class, () -> rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListAppend(),
+                new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                new Database.HashMapInit(),
+                new Database.HashMapRemove(db.md.digest("doesn't exist".getBytes()))
+            }));
+
+            // make sure foo doesn't exist anymore
+            assertEquals(null, rootCursor.readPath(new Database.PathPart[]{
+                new Database.ArrayListGet(-1),
+                new Database.HashMapGet(new Database.HashMapGetValue(fooKey)),
+            }));
         }
     }
 }
