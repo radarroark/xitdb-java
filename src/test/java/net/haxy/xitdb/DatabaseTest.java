@@ -689,5 +689,75 @@ class DatabaseTest {
                 assertEquals("grape", new String(grapeValue));
             }
         }
+
+        // append to top-level array_list many times, filling up the array_list until a root overflow occurs
+        {
+            core.setLength(0);
+            var db = new Database(core, hasher);
+            var rootCursor = db.rootCursor();
+
+            var watKey = db.md.digest("wat".getBytes());
+            for (int i = 0; i < Database.SLOT_COUNT + 1; i++) {
+                var value = "wat" + i;
+                rootCursor.writePath(new Database.PathPart[]{
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                    new Database.HashMapInit(),
+                    new Database.HashMapGet(new Database.HashMapGetValue(watKey)),
+                    new Database.WriteData(new Database.Bytes(value.getBytes()))
+                });
+            }
+
+            for (int i = 0; i < Database.SLOT_COUNT + 1; i++) {
+                var value = "wat" + i;
+                var cursor = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(i),
+                    new Database.HashMapGet(new Database.HashMapGetValue(watKey)),
+                });
+                var value2 = new String(cursor.readBytes(MAX_READ_BYTES));
+                assertEquals(value, value2);
+            }
+
+            // add more slots to cause a new index block to be created.
+            // a new index block will be created when i == 32 (the 33rd append).
+            // during that transaction, return an error so the transaction is
+            // cancelled, causing truncation to happen. this test ensures that
+            // the new index block is NOT truncated. this is prevented by updating
+            // the file size in the header immediately after making a new index block.
+            // see `readArrayListSlot` for more.
+            for (int i = Database.SLOT_COUNT + 1; i < Database.SLOT_COUNT * 2 + 1; i++) {
+                var value = "wat" + i;
+
+                final int index = i;
+
+                try {
+                    rootCursor.writePath(new Database.PathPart[]{
+                        new Database.ArrayListInit(),
+                        new Database.ArrayListAppend(),
+                        new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                        new Database.HashMapInit(),
+                        new Database.HashMapGet(new Database.HashMapGetValue(watKey)),
+                        new Database.WriteData(new Database.Bytes(value.getBytes())),
+                        new Database.Context((cursor) -> {
+                            if (index == 32) {
+                                throw new Exception();
+                            }
+                        })
+                    });
+                } catch (Exception e) {}
+            }
+
+            // try another append to make sure we still can.
+            // if truncation destroyed the index block, this would fail.
+            rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListAppend(),
+                new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                new Database.HashMapInit(),
+                new Database.HashMapGet(new Database.HashMapGetValue(watKey)),
+                new Database.WriteData(new Database.Bytes("wat32".getBytes()))
+            });
+        }
     }
 }
