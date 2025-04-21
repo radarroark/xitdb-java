@@ -147,7 +147,10 @@ public class Database {
     public static record HashMapGetKey(byte[] hash) implements HashMapGetTarget {}
     public static record HashMapGetValue(byte[] hash) implements HashMapGetTarget {}
 
-    public static sealed interface WriteableData permits Slot, Bytes {}
+    public static sealed interface WriteableData permits Slot, Uint, Int, Float, Bytes {}
+    public static record Uint(long value) implements WriteableData {}
+    public static record Int(long value) implements WriteableData {}
+    public static record Float(double value) implements WriteableData {}
     public static record Bytes(byte[] value) implements WriteableData {
         public boolean isShort() {
             if (this.value.length > 8) return false;
@@ -507,8 +510,21 @@ public class Database {
                     var writer = this.core.getWriter();
 
                     var data = writeData.data();
-                    Slot slot = data == null ? new Slot() : switch (data) {
+                    var slot = data == null ? new Slot() : switch (data) {
                         case Slot s -> s;
+                        case Uint i -> {
+                            if (i.value() < 0) {
+                                throw new IllegalArgumentException("Uint must not be negative");
+                            }
+                            yield new Slot(i.value(), Tag.UINT);
+                        }
+                        case Int i -> new Slot(i.value(), Tag.INT);
+                        case Float f -> {
+                            var buffer = ByteBuffer.allocate(8);
+                            buffer.putDouble(f.value());
+                            buffer.position(0);
+                            yield new Slot(buffer.getLong(), Tag.FLOAT);
+                        }
                         case Bytes bytes -> {
                             if (bytes.isShort()) {
                                 var buffer = ByteBuffer.allocate(8);

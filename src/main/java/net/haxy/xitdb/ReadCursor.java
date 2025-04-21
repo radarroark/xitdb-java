@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+import net.haxy.xitdb.Database.UnexpectedTagException;
+
 public class ReadCursor {
     SlotPointer slotPtr;
     Database db;
@@ -37,6 +39,30 @@ public class ReadCursor {
         } catch (Database.KeyNotFoundException e) {
             return null;
         }
+    }
+
+    public long readUint() throws UnexpectedTagException {
+        if (this.slotPtr.slot().tag() != Tag.UINT) {
+            throw new Database.UnexpectedTagException();
+        }
+        return this.slotPtr.slot().value();
+    }
+
+    public long readInt() throws UnexpectedTagException {
+        if (this.slotPtr.slot().tag() != Tag.INT) {
+            throw new Database.UnexpectedTagException();
+        }
+        return this.slotPtr.slot().value();
+    }
+
+    public double readFloat() throws UnexpectedTagException {
+        if (this.slotPtr.slot().tag() != Tag.FLOAT) {
+            throw new Database.UnexpectedTagException();
+        }
+        var buffer = ByteBuffer.allocate(8);
+        buffer.putLong(this.slotPtr.slot().value());
+        buffer.position(0);
+        return buffer.getDouble();
     }
 
     public byte[] readBytes(Long maxSizeMaybe) throws IOException, Database.DatabaseException {

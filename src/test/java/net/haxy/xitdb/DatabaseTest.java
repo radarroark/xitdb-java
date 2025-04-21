@@ -513,6 +513,63 @@ class DatabaseTest {
                     assertEquals(Tag.KV_PAIR, slot.tag());
                 }
             }
+
+            {
+                // overwrite foo with a uint
+                rootCursor.writePath(new Database.PathPart[]{
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                    new Database.HashMapInit(),
+                    new Database.HashMapGet(new Database.HashMapGetValue(fooKey)),
+                    new Database.WriteData(new Database.Uint(42))
+                });
+
+                // read foo
+                var uintValue = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.HashMapGet(new Database.HashMapGetValue(fooKey))
+                }).readUint();
+                assertEquals(42, uintValue);
+            }
+
+            {
+                // overwrite foo with a int
+                rootCursor.writePath(new Database.PathPart[]{
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                    new Database.HashMapInit(),
+                    new Database.HashMapGet(new Database.HashMapGetValue(fooKey)),
+                    new Database.WriteData(new Database.Int(-42))
+                });
+
+                // read foo
+                var intValue = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.HashMapGet(new Database.HashMapGetValue(fooKey))
+                }).readInt();
+                assertEquals(-42, intValue);
+            }
+
+            {
+                // overwrite foo with a float
+                rootCursor.writePath(new Database.PathPart[]{
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                    new Database.HashMapInit(),
+                    new Database.HashMapGet(new Database.HashMapGetValue(fooKey)),
+                    new Database.WriteData(new Database.Float(42.5))
+                });
+
+                // read foo
+                var intValue = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.HashMapGet(new Database.HashMapGetValue(fooKey))
+                }).readFloat();
+                assertEquals(42.5, intValue);
+            }
         }
     }
 }
