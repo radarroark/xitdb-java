@@ -1039,6 +1039,26 @@ class DatabaseTest {
                 }
                 assertEquals(10, i);
             }
+
+            // iterate over hash_map with writeable cursor
+            {
+                var innerCursor = rootCursor.writePath(new Database.PathPart[]{
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                });
+                var iter = innerCursor.iterator();
+                int i = 0;
+                while (iter.hasNext()) {
+                    var kvPairCursor = iter.next();
+                    var kvPair = kvPairCursor.writeKeyValuePair();
+                    if (Arrays.equals(kvPair.hash(), fooKey)) {
+                        kvPair.keyCursor().write(new Database.Bytes("bar".getBytes()));
+                    }
+                    i += 1;
+                }
+                assertEquals(10, i);
+            }
         }
     }
 }

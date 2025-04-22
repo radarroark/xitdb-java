@@ -25,11 +25,11 @@ public class WriteCursor extends ReadCursor {
         }
     }
 
-    public static record WriteKeyValuePairCursor(WriteCursor valueCursor, WriteCursor keyCursor, byte[] hash) {}
+    public static record KeyValuePairCursor(WriteCursor valueCursor, WriteCursor keyCursor, byte[] hash) {}
 
-    public WriteKeyValuePairCursor readWriteKeyValuePair() throws IOException, Database.UnexpectedTagException {
+    public KeyValuePairCursor writeKeyValuePair() throws IOException, Database.UnexpectedTagException {
         var kvPairCursor = super.readKeyValuePair();
-        return new WriteKeyValuePairCursor(
+        return new KeyValuePairCursor(
             new WriteCursor(kvPairCursor.valueCursor().slotPtr, this.db),
             new WriteCursor(kvPairCursor.keyCursor().slotPtr, this.db),
             kvPairCursor.hash()
@@ -91,5 +91,32 @@ public class WriteCursor extends ReadCursor {
                 this.relativePosition = position;
             }
         }
+    }
+
+    public static class Iterator extends ReadCursor.Iterator {
+        public Iterator(WriteCursor cursor) throws IOException, Database.DatabaseException {
+            super(cursor);
+        }
+
+        @Override
+        public boolean hasNext() {
+            return super.hasNext();
+        }
+
+        @Override
+        public WriteCursor next() {
+            var readCursor = super.next();
+            if (readCursor != null) {
+                return new WriteCursor(readCursor.slotPtr, readCursor.db);
+            } else {
+                return null;
+            }
+        }
+
+    }
+
+    @Override
+    public Iterator iterator() throws IOException, Database.DatabaseException {
+        return new Iterator(this);
     }
 }
