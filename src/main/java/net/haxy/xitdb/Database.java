@@ -954,8 +954,8 @@ public class Database {
             throw new ArrayListSliceOutOfBoundsException();
         }
 
-        var prevShift = (byte) (header.size < SLOT_COUNT ? 0 : Math.log(header.size - 1) / Math.log(SLOT_COUNT));
-        var nextShift = (byte) (size < SLOT_COUNT ? 0 : Math.log(size - 1) / Math.log(SLOT_COUNT));
+        var prevShift = (byte) (header.size < SLOT_COUNT + 1 ? 0 : Math.log(header.size - 1) / Math.log(SLOT_COUNT));
+        var nextShift = (byte) (size < SLOT_COUNT + 1 ? 0 : Math.log(size - 1) / Math.log(SLOT_COUNT));
 
         if (prevShift == nextShift) {
             // the root node doesn't need to change
