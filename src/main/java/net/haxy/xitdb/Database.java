@@ -20,6 +20,7 @@ public class Database {
     public static final long MASK = SLOT_COUNT - 1;
     public static final BigInteger BIG_MASK = BigInteger.valueOf(MASK);
     public static final int INDEX_BLOCK_SIZE = Slot.length * SLOT_COUNT;
+    public static final int LINKED_ARRAY_LIST_INDEX_BLOCK_SIZE = LinkedArrayListSlot.length * SLOT_COUNT;
 
     public static record Header (
         int hashId,
@@ -91,6 +92,7 @@ public class Database {
             return new ArrayListHeader(ptr, this.size);
         }
     }
+
     public static record TopLevelArrayListHeader(long fileSize, ArrayListHeader parent) {
         public static int length = 8 + ArrayListHeader.length;
 
@@ -101,6 +103,31 @@ public class Database {
             return buffer.array();
         }
     }
+
+    public static record LinkedArrayListHeader(byte shift, long ptr, long size) {
+        public static int length = 17;
+
+        public byte[] toBytes() {
+            var buffer = ByteBuffer.allocate(length);
+            buffer.putLong(this.size);
+            buffer.putLong(this.ptr);
+            buffer.put((byte) (this.shift & 0b0011_1111));
+            return buffer.array();
+        }
+
+        public static LinkedArrayListHeader fromBytes(byte[] bytes) {
+            var buffer = ByteBuffer.wrap(bytes);
+            var size = buffer.getLong();
+            var ptr = buffer.getLong();
+            var shift = (byte) (buffer.get() & 0b1100_1111);
+            return new LinkedArrayListHeader(shift, ptr, size);
+        }
+
+        public LinkedArrayListHeader withPtr(long ptr) {
+            return new LinkedArrayListHeader(this.shift, ptr, this.size);
+        }
+    }
+
     public static record KeyValuePair(Slot valueSlot, Slot keySlot, byte[] hash) {
         public static int length(int hashSize) {
             return hashSize + Slot.length * 2;
@@ -128,11 +155,12 @@ public class Database {
         }
     }
 
-    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, ArrayListSlice, HashMapInit, HashMapGet, HashMapRemove, WriteData, Context {}
+    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, ArrayListSlice, LinkedArrayListInit, HashMapInit, HashMapGet, HashMapRemove, WriteData, Context {}
     public static record ArrayListInit() implements PathPart {}
     public static record ArrayListGet(long index) implements PathPart {}
     public static record ArrayListAppend() implements PathPart {}
     public static record ArrayListSlice(long size) implements PathPart {}
+    public static record LinkedArrayListInit() implements PathPart {}
     public static record HashMapInit() implements PathPart {}
     public static record HashMapGet(HashMapGetTarget target) implements PathPart {}
     public static record HashMapRemove(byte[] hash) implements PathPart {}
@@ -162,6 +190,11 @@ public class Database {
         }
     }
 
+    public static record LinkedArrayListSlot(long size, Slot slot) {
+        public static int length = 8 + Slot.length;
+    }
+    public static record LinkedArrayListSlotPointer(long leafCount, SlotPointer slotPtr) {}
+
     public static class DatabaseException extends Exception {}
     public static class NotImplementedException extends DatabaseException {}
     public static class UnreachableException extends DatabaseException {}
@@ -179,6 +212,7 @@ public class Database {
     public static class EndOfStreamException extends DatabaseException {}
     public static class InvalidOffsetException extends DatabaseException {}
     public static class ArrayListSliceOutOfBoundsException extends DatabaseException {}
+    public static class InvalidTopLevelTypeException extends DatabaseException {}
 
     // init
 
@@ -422,6 +456,71 @@ public class Database {
                     writer.write(sliceHeader.toBytes());
 
                     return finalSlotPtr;
+                }
+                case LinkedArrayListInit linkedArrayListInit -> {
+                    if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
+
+                    if (isTopLevel) throw new InvalidTopLevelTypeException();
+
+                    if (slotPtr.position() == null) throw new CursorNotWriteableException();
+                    long position = slotPtr.position();
+
+                    switch (slotPtr.slot().tag()) {
+                        case NONE -> {
+                            // if slot was empty, insert the new list
+                            var writer = this.core.writer();
+                            this.core.seek(this.core.length());
+                            var arrayListStart = this.core.length();
+                            var arrayListPtr = arrayListStart + LinkedArrayListHeader.length;
+                            writer.write(new LinkedArrayListHeader(
+                                (byte)0,
+                                arrayListPtr,
+                                0
+                            ).toBytes());
+                            writer.write(new byte[LINKED_ARRAY_LIST_INDEX_BLOCK_SIZE]);
+                            // make slot point to list
+                            var nextSlotPtr = new SlotPointer(position, new Slot(arrayListStart, Tag.LINKED_ARRAY_LIST));
+                            this.core.seek(position);
+                            writer.write(nextSlotPtr.slot().toBytes());
+                            return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
+                        }
+                        case LINKED_ARRAY_LIST -> {
+                            var reader = this.core.reader();
+                            var writer = this.core.writer();
+
+                            var arrayListStart = slotPtr.slot().value();
+
+                            // copy it to the end unless it was made in this transaction
+                            if (this.txStart != null) {
+                                if (arrayListStart < this.txStart) {
+                                    // read existing block
+                                    this.core.seek(arrayListStart);
+                                    var headerBytes = new byte[LinkedArrayListHeader.length];
+                                    reader.readFully(headerBytes);
+                                    var header = LinkedArrayListHeader.fromBytes(headerBytes);
+                                    this.core.seek(header.ptr);
+                                    var arrayListIndexBlock = new byte[LINKED_ARRAY_LIST_INDEX_BLOCK_SIZE];
+                                    reader.readFully(arrayListIndexBlock);
+                                    // copy to the end
+                                    this.core.seek(this.core.length());
+                                    arrayListStart = this.core.length();
+                                    var nextArrayListPtr = arrayListStart + LinkedArrayListHeader.length;
+                                    header = header.withPtr(nextArrayListPtr);
+                                    writer.write(header.toBytes());
+                                    writer.write(arrayListIndexBlock);
+                                }
+                            } else if (this.header.tag() == Tag.ARRAY_LIST) {
+                                throw new ExpectedTxStartException();
+                            }
+
+                            // make slot point to list
+                            var nextSlotPtr = new SlotPointer(position, new Slot(arrayListStart, Tag.LINKED_ARRAY_LIST));
+                            this.core.seek(position);
+                            writer.write(nextSlotPtr.slot().toBytes());
+                            return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
+                        }
+                        default -> throw new UnexpectedTagException();
+                    }
                 }
                 case HashMapInit hashMapInit -> {
                     if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();

@@ -8,6 +8,7 @@ import java.io.File;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.Arrays;
 
 class DatabaseTest {
@@ -29,6 +30,32 @@ class DatabaseTest {
             var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
             testLowLevelApi(core, hasher);
         }
+    }
+
+    void testSlice(Core core, Hasher hasher, int originalSize, long sliceOffset, long sliceSize) throws Exception {
+        core.setLength(0);
+        var db = new Database(core, hasher);
+        var rootCursor = db.rootCursor();
+
+        rootCursor.writePath(new Database.PathPart[]{
+            new Database.ArrayListInit(),
+            new Database.ArrayListAppend(),
+            new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+            new Database.HashMapInit(),
+            new Database.Context((cursor) -> {
+                var values = new ArrayList<Long>();
+
+                // create list
+                for (int i = 0; i < originalSize; i++) {
+                    long n = i * 2;
+                    values.add(n);
+                    cursor.writePath(new Database.PathPart[]{
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes()))),
+                        new Database.LinkedArrayListInit()
+                    });
+                }
+            })
+        });
     }
 
     void testLowLevelApi(Core core, Hasher hasher) throws Exception {
@@ -1059,6 +1086,11 @@ class DatabaseTest {
                 }
                 assertEquals(10, i);
             }
+        }
+
+        {
+            // slice linked_array_list
+            testSlice(core, hasher, Database.SLOT_COUNT * 5 + 1, 10, 5);
         }
     }
 }
