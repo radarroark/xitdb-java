@@ -83,8 +83,8 @@ public class Database {
 
         public static ArrayListHeader fromBytes(byte[] bytes) {
             var buffer = ByteBuffer.wrap(bytes);
-            var size = buffer.getLong();
-            var ptr = buffer.getLong();
+            var size = checkLong(buffer.getLong());
+            var ptr = checkLong(buffer.getLong());
             return new ArrayListHeader(ptr, size);
         }
 
@@ -117,8 +117,8 @@ public class Database {
 
         public static LinkedArrayListHeader fromBytes(byte[] bytes) {
             var buffer = ByteBuffer.wrap(bytes);
-            var size = buffer.getLong();
-            var ptr = buffer.getLong();
+            var size = checkLong(buffer.getLong());
+            var ptr = checkLong(buffer.getLong());
             var shift = (byte) (buffer.get() & 0b1100_1111);
             return new LinkedArrayListHeader(shift, ptr, size);
         }
@@ -213,6 +213,7 @@ public class Database {
     public static class InvalidOffsetException extends DatabaseException {}
     public static class ArrayListSliceOutOfBoundsException extends DatabaseException {}
     public static class InvalidTopLevelTypeException extends DatabaseException {}
+    public static class ExpectedUnsignedLongException extends DatabaseException {}
 
     // init
 
@@ -277,6 +278,13 @@ public class Database {
             throw new InvalidHashSizeException();
         }
         return hash;
+    }
+
+    private static long checkLong(long n) {
+        if (n < 0) {
+            throw new RuntimeException(new ExpectedUnsignedLongException());
+        }
+        return n;
     }
 
     protected SlotPointer readSlotPointer(WriteMode writeMode, PathPart[] path, SlotPointer slotPtr) throws Exception {
