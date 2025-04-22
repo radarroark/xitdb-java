@@ -3,8 +3,9 @@ package net.haxy.xitdb;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Stack;
 
-import net.haxy.xitdb.Database.UnexpectedTagException;
+import net.haxy.xitdb.Database.DatabaseException;
 
 public class ReadCursor {
     SlotPointer slotPtr;
@@ -41,21 +42,21 @@ public class ReadCursor {
         }
     }
 
-    public long readUint() throws UnexpectedTagException {
+    public long readUint() throws Database.UnexpectedTagException {
         if (this.slotPtr.slot().tag() != Tag.UINT) {
             throw new Database.UnexpectedTagException();
         }
         return this.slotPtr.slot().value();
     }
 
-    public long readInt() throws UnexpectedTagException {
+    public long readInt() throws Database.UnexpectedTagException {
         if (this.slotPtr.slot().tag() != Tag.INT) {
             throw new Database.UnexpectedTagException();
         }
         return this.slotPtr.slot().value();
     }
 
-    public double readFloat() throws UnexpectedTagException {
+    public double readFloat() throws Database.UnexpectedTagException {
         if (this.slotPtr.slot().tag() != Tag.FLOAT) {
             throw new Database.UnexpectedTagException();
         }
@@ -103,6 +104,31 @@ public class ReadCursor {
             }
             default -> throw new Database.UnexpectedTagException();
         }
+    }
+
+    public static record KeyValuePairCursor(ReadCursor valueCursor, ReadCursor keyCursor, byte[] hash) {}
+
+    public KeyValuePairCursor readKeyValuePair() throws IOException, Database.UnexpectedTagException {
+        var reader = this.db.core.getReader();
+
+        if (this.slotPtr.slot().tag() != Tag.KV_PAIR) {
+            throw new Database.UnexpectedTagException();
+        }
+
+        this.db.core.seek(this.slotPtr.slot().value());
+        var kvPairBytes = new byte[Database.KeyValuePair.length(this.db.header.hashSize())];
+        reader.readFully(kvPairBytes);
+        var kvPair = Database.KeyValuePair.fromBytes(kvPairBytes, this.db.header.hashSize());
+
+        var hashPos = this.slotPtr.slot().value();
+        var keySlotPos = hashPos + this.db.header.hashSize();
+        var valueSlotPos = keySlotPos + Slot.length;
+
+        return new KeyValuePairCursor(
+            new ReadCursor(new SlotPointer(valueSlotPos, kvPair.valueSlot()), this.db),
+            new ReadCursor(new SlotPointer(keySlotPos, kvPair.keySlot()), this.db),
+            kvPair.hash()
+        );
     }
 
     public Reader getReader() throws IOException, Database.DatabaseException {
@@ -240,5 +266,178 @@ public class ReadCursor {
             }
             this.relativePosition = position;
         }
+    }
+
+    public static class Iterator implements java.util.Iterator<ReadCursor> {
+        ReadCursor cursor;
+        long size;
+        long index;
+        Stack<Level> stack;
+        ReadCursor nextCursorMaybe = null; // only used when iterating over hash maps
+
+        public static class Level {
+            long position;
+            Slot[] block;
+            byte index;
+
+            public Level(long position, Slot[] block, byte index) {
+                this.position = position;
+                this.block = block;
+                this.index = index;
+            }
+        }
+
+        public Iterator(ReadCursor cursor) throws IOException, Database.DatabaseException {
+            this.cursor = cursor;
+            switch (cursor.slotPtr.slot().tag()) {
+                case NONE -> {
+                    this.size = 0;
+                    this.index = 0;
+                    this.stack = new Stack<Level>();
+                }
+                case ARRAY_LIST -> {
+                    var position = cursor.slotPtr.slot().value();
+                    cursor.db.core.seek(position);
+                    var reader = cursor.db.core.getReader();
+                    var headerBytes = new byte[Database.ArrayListHeader.length];
+                    reader.readFully(headerBytes);
+                    var header = Database.ArrayListHeader.fromBytes(headerBytes);
+                    this.size = cursor.count();
+                    this.index = 0;
+                    this.stack = initStack(cursor, header.ptr(), Database.INDEX_BLOCK_SIZE);
+                }
+                case LINKED_ARRAY_LIST -> throw new Database.NotImplementedException();
+                case HASH_MAP -> {
+                    this.size = 0;
+                    this.index = 0;
+                    this.stack = initStack(cursor, cursor.slotPtr.slot().value(), Database.INDEX_BLOCK_SIZE);
+                }
+                default -> throw new Database.UnexpectedTagException();
+            }
+        }
+
+        @Override
+        public boolean hasNext() {
+            return switch (this.cursor.slotPtr.slot().tag()) {
+                case NONE -> false;
+                case ARRAY_LIST -> this.index < this.size;
+                case LINKED_ARRAY_LIST -> false;
+                case HASH_MAP -> {
+                    // the only way to determine if there's another value in the
+                    // hash map is to try to retrieve it, so we store it in a
+                    // field and then read from that field when next() is called.
+                    try {
+                        this.nextCursorMaybe = nextInternal(Database.INDEX_BLOCK_SIZE);
+                        yield this.nextCursorMaybe != null;
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                default -> false;
+            };
+        }
+
+        @Override
+        public ReadCursor next() {
+            try {
+                switch (this.cursor.slotPtr.slot().tag()) {
+                    case NONE -> {
+                        return null;
+                    }
+                    case ARRAY_LIST -> {
+                        if (!hasNext()) return null;
+                        this.index += 1;
+                        return nextInternal(Database.INDEX_BLOCK_SIZE);
+                    }
+                    case LINKED_ARRAY_LIST -> throw new Database.NotImplementedException();
+                    case HASH_MAP -> {
+                        if (this.nextCursorMaybe != null) {
+                            var nextCursor = this.nextCursorMaybe;
+                            this.nextCursorMaybe = null;
+                            return nextCursor;
+                        } else {
+                            return nextInternal(Database.INDEX_BLOCK_SIZE);
+                        }
+                    }
+                    default -> throw new Database.UnexpectedTagException();
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        private static Stack<Level> initStack(ReadCursor cursor, long position, int blockSize) throws IOException {
+            // find the block
+            cursor.db.core.seek(position);
+            // read the block
+            var reader = cursor.db.core.getReader();
+            var indexBlockBytes = new byte[blockSize];
+            reader.readFully(indexBlockBytes);
+            // convert the block into slots
+            var indexBlock = new Slot[Database.SLOT_COUNT];
+            var buffer = ByteBuffer.wrap(indexBlockBytes);
+            for (int i = 0; i < indexBlock.length; i++) {
+                var slotBytes = new byte[Slot.length];
+                buffer.get(slotBytes);
+                indexBlock[i] = Slot.fromBytes(slotBytes);
+            }
+            // init the stack
+            var stack = new Stack<Level>();
+            stack.add(new Level(position, indexBlock, (byte)0));
+            return stack;
+        }
+
+        private ReadCursor nextInternal(int blockSize) throws IOException {
+            while (!this.stack.empty()) {
+                var level = this.stack.peek();
+                if (level.index == level.block.length) {
+                    this.stack.pop();
+                    if (!this.stack.empty()) {
+                        this.stack.peek().index += 1;
+                    }
+                    continue;
+                } else {
+                    var nextSlot = level.block[level.index];
+                    if (nextSlot.tag() == Tag.INDEX) {
+                        // find the block
+                        var nextPos = nextSlot.value();
+                        cursor.db.core.seek(nextPos);
+                        // read the block
+                        var reader = cursor.db.core.getReader();
+                        var indexBlockBytes = new byte[blockSize];
+                        reader.readFully(indexBlockBytes);
+                        // convert the block into slots
+                        var indexBlock = new Slot[Database.SLOT_COUNT];
+                        var buffer = ByteBuffer.wrap(indexBlockBytes);
+                        for (int i = 0; i < indexBlock.length; i++) {
+                            var slotBytes = new byte[Slot.length];
+                            buffer.get(slotBytes);
+                            indexBlock[i] = Slot.fromBytes(slotBytes);
+                            // linked array list has larger slots so we need to skip over the rest
+                            buffer.position(buffer.position() + ((blockSize / Database.SLOT_COUNT) - Slot.length));
+                        }
+                        // append to the stack
+                        stack.add(new Level(nextPos, indexBlock, (byte)0));
+                        continue;
+                    } else {
+                        this.stack.peek().index += 1;
+                        // normally a slot that is .none should be skipped because it doesn't
+                        // have a value, but if it's set to full, then it is actually a valid
+                        // item that should be returned.
+                        if (nextSlot.tag() != Tag.NONE || nextSlot.full()) {
+                            var position = level.position + (level.index * Slot.length);
+                            return new ReadCursor(new SlotPointer(position, nextSlot), this.cursor.db);
+                        } else {
+                            continue;
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+    }
+
+    public Iterator iterator() throws IOException, DatabaseException {
+        return new Iterator(this);
     }
 }

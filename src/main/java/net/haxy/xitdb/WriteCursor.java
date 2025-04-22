@@ -25,6 +25,17 @@ public class WriteCursor extends ReadCursor {
         }
     }
 
+    public static record WriteKeyValuePairCursor(WriteCursor valueCursor, WriteCursor keyCursor, byte[] hash) {}
+
+    public WriteKeyValuePairCursor readWriteKeyValuePair() throws IOException, Database.UnexpectedTagException {
+        var kvPairCursor = super.readKeyValuePair();
+        return new WriteKeyValuePairCursor(
+            new WriteCursor(kvPairCursor.valueCursor().slotPtr, this.db),
+            new WriteCursor(kvPairCursor.keyCursor().slotPtr, this.db),
+            kvPairCursor.hash()
+        );
+    }
+
     public Writer getWriter() throws IOException {
         var writer = this.db.core.getWriter();
         this.db.core.seek(this.db.core.length());

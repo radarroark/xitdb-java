@@ -8,6 +8,7 @@ import java.io.File;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
 import java.security.MessageDigest;
+import java.util.Arrays;
 
 class DatabaseTest {
     static long MAX_READ_BYTES = 1024;
@@ -885,6 +886,158 @@ class DatabaseTest {
                 });
                 var value = new String(cursor.readBytes(MAX_READ_BYTES));
                 assertEquals("hello", value);
+            }
+        }
+
+        // iterate over inner array_list
+        {
+            core.setLength(0);
+            var db = new Database(core, hasher);
+            var rootCursor = db.rootCursor();
+
+            // add wats
+            for (int i = 0; i < 10; i++) {
+                var value = "wat" + i;
+                rootCursor.writePath(new Database.PathPart[]{
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(new Database.Bytes(value.getBytes()))
+                });
+
+                var cursor = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.ArrayListGet(-1)
+                });
+                var value2 = new String(cursor.readBytes(MAX_READ_BYTES));
+                assertEquals(value, value2);
+            }
+
+            // iterate over array_list
+            {
+                var innerCursor = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1)
+                });
+                var iter = innerCursor.iterator();
+                int i = 0;
+                while (iter.hasNext()) {
+                    var nextCursor = iter.next();
+                    var value = "wat" + i;
+                    var value2 = new String(nextCursor.readBytes(MAX_READ_BYTES));
+                    assertEquals(value, value2);
+                    i += 1;
+                }
+                assertEquals(10, i);
+            }
+
+            // set first slot to .none and make sure iteration still works.
+            // this validates that it correctly returns .none slots if
+            // their flag is set, rather than skipping over them.
+            {
+                rootCursor.writePath(new Database.PathPart[]{
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListGet(-1),
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListGet(0),
+                    new Database.WriteData(null)
+                });
+                var innerCursor = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1)
+                });
+                var iter = innerCursor.iterator();
+                int i = 0;
+                while (iter.hasNext()) {
+                    iter.next();
+                    i += 1;
+                }
+                assertEquals(10, i);
+            }
+
+            // get list slot
+            var listCursor = rootCursor.readPath(new Database.PathPart[]{
+                new Database.ArrayListGet(-1)
+            });
+            assertEquals(10, listCursor.count());
+        }
+
+        // iterate over inner hash_map
+        {
+            core.setLength(0);
+            var db = new Database(core, hasher);
+            var rootCursor = db.rootCursor();
+
+            // add wats
+            for (int i = 0; i < 10; i++) {
+                var value = "wat" + i;
+                var watKey = db.md.digest(value.getBytes());
+                rootCursor.writePath(new Database.PathPart[]{
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                    new Database.HashMapInit(),
+                    new Database.HashMapGet(new Database.HashMapGetValue(watKey)),
+                    new Database.WriteData(new Database.Bytes(value.getBytes()))
+                });
+
+                var cursor = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.HashMapGet(new Database.HashMapGetValue(watKey))
+                });
+                var value2 = new String(cursor.readBytes(MAX_READ_BYTES));
+                assertEquals(value, value2);
+            }
+
+            // add foo
+            var fooKey = db.md.digest("foo".getBytes());
+            rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListAppend(),
+                new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                new Database.HashMapInit(),
+                new Database.HashMapGet(new Database.HashMapGetKey(fooKey)),
+                new Database.WriteData(new Database.Bytes("foo".getBytes()))
+            });
+            rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListAppend(),
+                new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                new Database.HashMapInit(),
+                new Database.HashMapGet(new Database.HashMapGetValue(fooKey)),
+                new Database.WriteData(new Database.Uint(42))
+            });
+
+            // remove a wat
+            rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListAppend(),
+                new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                new Database.HashMapInit(),
+                new Database.HashMapRemove(db.md.digest("wat0".getBytes()))
+            });
+
+            // iterate over hash_map
+            {
+                var innerCursor = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1)
+                });
+                var iter = innerCursor.iterator();
+                int i = 0;
+                while (iter.hasNext()) {
+                    var kvPairCursor = iter.next();
+                    var kvPair = kvPairCursor.readKeyValuePair();
+                    if (Arrays.equals(kvPair.hash(), fooKey)) {
+                        var key = new String(kvPair.keyCursor().readBytes(MAX_READ_BYTES));
+                        assertEquals("foo", key);
+                        assertEquals(42, kvPair.valueCursor().slotPtr.slot().value());
+                    } else {
+                        var value = kvPair.valueCursor().readBytes(MAX_READ_BYTES);
+                        assert(Arrays.equals(kvPair.hash(), db.md.digest(value)));
+                    }
+                    i += 1;
+                }
+                assertEquals(10, i);
             }
         }
     }
