@@ -70,7 +70,7 @@ public class WriteCursor extends ReadCursor {
             this.relativePosition = relativePosition;
         }
 
-        public void write(byte[] buffer) throws IOException, Database.DatabaseException {
+        public void write(byte[] buffer) throws IOException {
             if (this.size < this.relativePosition) throw new Database.EndOfStreamException();
             this.parent.db.core.seek(this.startPosition + this.relativePosition);
             var writer = this.parent.db.core.writer();
@@ -81,7 +81,7 @@ public class WriteCursor extends ReadCursor {
             }
         }
 
-        public void finish() throws IOException, Database.DatabaseException {
+        public void finish() throws IOException {
             var writer = this.parent.db.core.writer();
 
             this.parent.db.core.seek(this.slot.value());
@@ -103,7 +103,7 @@ public class WriteCursor extends ReadCursor {
     }
 
     public static class Iterator extends ReadCursor.Iterator {
-        public Iterator(WriteCursor cursor) throws IOException, Database.DatabaseException {
+        public Iterator(WriteCursor cursor) throws IOException {
             super(cursor);
         }
 
@@ -125,7 +125,7 @@ public class WriteCursor extends ReadCursor {
     }
 
     @Override
-    public Iterator iterator() throws IOException, Database.DatabaseException {
+    public Iterator iterator() throws IOException {
         return new Iterator(this);
     }
 }

@@ -5,8 +5,6 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Stack;
 
-import net.haxy.xitdb.Database.DatabaseException;
-
 public class ReadCursor {
     public SlotPointer slotPtr;
     public Database db;
@@ -66,7 +64,7 @@ public class ReadCursor {
         return buffer.getDouble();
     }
 
-    public byte[] readBytes(Long maxSizeMaybe) throws IOException, Database.DatabaseException {
+    public byte[] readBytes(Long maxSizeMaybe) throws IOException {
         var reader = this.db.core.reader();
 
         switch (this.slotPtr.slot().tag()) {
@@ -141,7 +139,7 @@ public class ReadCursor {
         );
     }
 
-    public Reader reader() throws IOException, Database.DatabaseException {
+    public Reader reader() throws IOException {
         var reader = this.db.core.reader();
 
         switch (this.slotPtr.slot().tag()) {
@@ -169,7 +167,7 @@ public class ReadCursor {
         }
     }
 
-    public long count() throws IOException, Database.DatabaseException {
+    public long count() throws IOException {
         var reader = this.db.core.reader();
         switch (this.slotPtr.slot().tag()) {
             case NONE -> {
@@ -216,7 +214,7 @@ public class ReadCursor {
             this.relativePosition = relativePosition;
         }
 
-        public int read(byte[] buffer) throws IOException, Database.DatabaseException {
+        public int read(byte[] buffer) throws IOException {
             if (this.size < this.relativePosition) throw new Database.EndOfStreamException();
             this.parent.db.core.seek(this.startPosition + this.relativePosition);
             var readSize = Math.min(buffer.length, (int) (this.size - this.relativePosition));
@@ -226,7 +224,7 @@ public class ReadCursor {
             return readSize;
         }
 
-        public void readFully(byte[] bytes) throws IOException, Database.DatabaseException {
+        public void readFully(byte[] bytes) throws IOException {
             if (this.size < this.relativePosition || this.size - this.relativePosition < bytes.length) throw new Database.EndOfStreamException();
             this.parent.db.core.seek(this.startPosition + this.relativePosition);
             var reader = this.parent.db.core.reader();
@@ -234,13 +232,13 @@ public class ReadCursor {
             this.relativePosition += bytes.length;
         }
 
-        public byte readByte() throws IOException, Database.DatabaseException {
+        public byte readByte() throws IOException {
             var bytes = new byte[1];
             this.readFully(bytes);
             return bytes[0];
         }
 
-        public short readShort() throws IOException, Database.DatabaseException {
+        public short readShort() throws IOException {
             var readSize = 2;
             var bytes = new byte[readSize];
             this.readFully(bytes);
@@ -250,7 +248,7 @@ public class ReadCursor {
             return buffer.getShort();
         }
 
-        public int readInt() throws IOException, Database.DatabaseException {
+        public int readInt() throws IOException {
             var readSize = 4;
             var bytes = new byte[readSize];
             this.readFully(bytes);
@@ -260,7 +258,7 @@ public class ReadCursor {
             return buffer.getInt();
         }
 
-        public long readLong() throws IOException, Database.DatabaseException {
+        public long readLong() throws IOException {
             var readSize = 8;
             var bytes = new byte[readSize];
             this.readFully(bytes);
@@ -297,7 +295,7 @@ public class ReadCursor {
             }
         }
 
-        public Iterator(ReadCursor cursor) throws IOException, Database.DatabaseException {
+        public Iterator(ReadCursor cursor) throws IOException {
             this.cursor = cursor;
             switch (cursor.slotPtr.slot().tag()) {
                 case NONE -> {
@@ -447,7 +445,7 @@ public class ReadCursor {
         }
     }
 
-    public Iterator iterator() throws IOException, DatabaseException {
+    public Iterator iterator() throws IOException {
         return new Iterator(this);
     }
 }

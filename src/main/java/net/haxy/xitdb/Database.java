@@ -52,7 +52,7 @@ public class Database {
             return new Header(hashId, hashSize, version, tag, magicNumber);
         }
 
-        public void validate() throws InvalidDatabaseException, InvalidVersionException {
+        public void validate() {
             if (!Arrays.equals(this.magicNumber, MAGIC_NUMBER)) {
                 throw new InvalidDatabaseException();
             }
@@ -195,7 +195,7 @@ public class Database {
     }
     public static record LinkedArrayListSlotPointer(long leafCount, SlotPointer slotPtr) {}
 
-    public static class DatabaseException extends Exception {}
+    public static class DatabaseException extends RuntimeException {}
     public static class NotImplementedException extends DatabaseException {}
     public static class UnreachableException extends DatabaseException {}
     public static class InvalidDatabaseException extends DatabaseException {}
@@ -217,7 +217,7 @@ public class Database {
 
     // init
 
-    public Database(Core core, Hasher hasher) throws IOException, DatabaseException {
+    public Database(Core core, Hasher hasher) throws IOException {
         this.core = core;
         this.md = hasher.md();
 
@@ -249,7 +249,7 @@ public class Database {
         return header;
     }
 
-    private void truncate() throws IOException, DatabaseException {
+    private void truncate() throws IOException {
         if (this.header.tag() != Tag.ARRAY_LIST) return;
 
         var rootCursor = rootCursor();
@@ -282,7 +282,7 @@ public class Database {
 
     private static long checkLong(long n) {
         if (n < 0) {
-            throw new RuntimeException(new ExpectedUnsignedLongException());
+            throw new ExpectedUnsignedLongException();
         }
         return n;
     }
@@ -707,7 +707,7 @@ public class Database {
 
     // hash_map
 
-    private SlotPointer readMapSlot(long indexPos, byte[] keyHash, byte keyOffset, WriteMode writeMode, boolean isTopLevel, HashMapGetTarget target) throws IOException, DatabaseException {
+    private SlotPointer readMapSlot(long indexPos, byte[] keyHash, byte keyOffset, WriteMode writeMode, boolean isTopLevel, HashMapGetTarget target) throws IOException {
         if (keyOffset > (this.header.hashSize() * 8) / BIT_COUNT) {
             throw new KeyOffsetExceededException();
         }
@@ -843,7 +843,7 @@ public class Database {
         }
     }
 
-    private Slot removeMapSlot(long indexPos, byte[] keyHash, byte keyOffset, boolean isTopLevel) throws IOException, DatabaseException {
+    private Slot removeMapSlot(long indexPos, byte[] keyHash, byte keyOffset, boolean isTopLevel) throws IOException {
         if (keyOffset > (this.header.hashSize() * 8) / BIT_COUNT) {
             throw new KeyOffsetExceededException();
         }
@@ -954,7 +954,7 @@ public class Database {
 
     public static record ArrayListAppendResult(ArrayListHeader header, SlotPointer slotPtr) {}
 
-    private ArrayListAppendResult readArrayListSlotAppend(long indexStart, WriteMode writeMode, boolean isTopLevel) throws IOException, DatabaseException {
+    private ArrayListAppendResult readArrayListSlotAppend(long indexStart, WriteMode writeMode, boolean isTopLevel) throws IOException {
         var reader = this.core.reader();
         var writer = this.core.writer();
 
@@ -983,7 +983,7 @@ public class Database {
         return new ArrayListAppendResult(new ArrayListHeader(indexPos, header.size() + 1), slotPtr);
     }
 
-    private SlotPointer readArrayListSlot(long indexPos, long key, byte shift, WriteMode writeMode, boolean isTopLevel) throws IOException, DatabaseException {
+    private SlotPointer readArrayListSlot(long indexPos, long key, byte shift, WriteMode writeMode, boolean isTopLevel) throws IOException {
         var reader = this.core.reader();
 
         var i = (key >> (shift * BIT_COUNT)) & MASK;
@@ -1051,7 +1051,7 @@ public class Database {
         }
     }
 
-    private ArrayListHeader readArrayListSlice(long indexStart, long size) throws IOException, DatabaseException {
+    private ArrayListHeader readArrayListSlice(long indexStart, long size) throws IOException {
         var reader = this.core.reader();
 
         this.core.seek(indexStart);
