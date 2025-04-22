@@ -758,6 +758,29 @@ class DatabaseTest {
                 new Database.HashMapGet(new Database.HashMapGetValue(watKey)),
                 new Database.WriteData(new Database.Bytes("wat32".getBytes()))
             });
+
+            // slice so it contains exactly SLOT_COUNT,
+            // so we have the old root again
+            rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListSlice(Database.SLOT_COUNT)
+            });
+
+            // we can iterate over the remaining slots
+            for (int i = 0; i < Database.SLOT_COUNT; i ++) {
+                var value = "wat" + i;
+                var cursor = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(i),
+                    new Database.HashMapGet(new Database.HashMapGetValue(watKey))
+                });
+                var value2 = new String(cursor.readBytes(MAX_READ_BYTES));
+                assertEquals(value, value2);
+            }
+
+            // but we can't get the value that we sliced out of the array list
+            assertEquals(null, rootCursor.readPath(new Database.PathPart[]{
+                new Database.ArrayListGet(Database.SLOT_COUNT + 1)
+            }));
         }
     }
 }

@@ -128,10 +128,11 @@ public class Database {
         }
     }
 
-    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, HashMapInit, HashMapGet, HashMapRemove, WriteData, Context {}
+    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, ArrayListSlice, HashMapInit, HashMapGet, HashMapRemove, WriteData, Context {}
     public static record ArrayListInit() implements PathPart {}
     public static record ArrayListGet(long index) implements PathPart {}
     public static record ArrayListAppend() implements PathPart {}
+    public static record ArrayListSlice(long size) implements PathPart {}
     public static record HashMapInit() implements PathPart {}
     public static record HashMapGet(HashMapGetTarget target) implements PathPart {}
     public static record HashMapRemove(byte[] hash) implements PathPart {}
@@ -177,6 +178,7 @@ public class Database {
     public static class StreamTooLongException extends DatabaseException {}
     public static class EndOfStreamException extends DatabaseException {}
     public static class InvalidOffsetException extends DatabaseException {}
+    public static class ArrayListSliceOutOfBoundsException extends DatabaseException {}
 
     // init
 
@@ -401,6 +403,23 @@ public class Database {
                         this.core.seek(nextArrayListStart);
                         writer.write(appendResult.header().toBytes());
                     }
+
+                    return finalSlotPtr;
+                }
+                case ArrayListSlice arrayListSlice -> {
+                    if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
+
+                    if (slotPtr.slot().tag() != Tag.ARRAY_LIST) throw new UnexpectedTagException();
+
+                    var nextArrayListStart = slotPtr.slot().value();
+
+                    var sliceHeader = readArrayListSlice(nextArrayListStart, arrayListSlice.size());
+                    var finalSlotPtr = readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), slotPtr);
+
+                    // update header
+                    var writer = this.core.getWriter();
+                    this.core.seek(nextArrayListStart);
+                    writer.write(sliceHeader.toBytes());
 
                     return finalSlotPtr;
                 }
@@ -920,6 +939,40 @@ public class Database {
                 return readArrayListSlot(nextPtr, key, (byte)(shift - 1), writeMode, isTopLevel);
             }
             default -> throw new UnexpectedTagException();
+        }
+    }
+
+    private ArrayListHeader readArrayListSlice(long indexStart, long size) throws IOException, DatabaseException {
+        var reader = this.core.getReader();
+
+        this.core.seek(indexStart);
+        var headerBytes = new byte[ArrayListHeader.length];
+        reader.readFully(headerBytes);
+        var header = ArrayListHeader.fromBytes(headerBytes);
+
+        if (size > header.size()) {
+            throw new ArrayListSliceOutOfBoundsException();
+        }
+
+        var prevShift = (byte) (header.size < SLOT_COUNT ? 0 : Math.log(header.size - 1) / Math.log(SLOT_COUNT));
+        var nextShift = (byte) (size < SLOT_COUNT ? 0 : Math.log(size - 1) / Math.log(SLOT_COUNT));
+
+        if (prevShift == nextShift) {
+            // the root node doesn't need to change
+            return new ArrayListHeader(header.ptr, size);
+        } else {
+            // keep following the first slot until we are at the correct shift
+            var shift = prevShift;
+            var indexPos = header.ptr;
+            while (shift > nextShift) {
+                this.core.seek(indexPos);
+                var slotBytes = new byte[Slot.length];
+                reader.readFully(slotBytes);
+                var slot = Slot.fromBytes(slotBytes);
+                shift -= 1;
+                indexPos = slot.value();
+            }
+            return new ArrayListHeader(indexPos, size);
         }
     }
 }
