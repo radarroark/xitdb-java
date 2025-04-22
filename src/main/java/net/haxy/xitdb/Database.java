@@ -950,7 +950,7 @@ public class Database {
         reader.readFully(headerBytes);
         var header = ArrayListHeader.fromBytes(headerBytes);
 
-        if (size > header.size()) {
+        if (size > header.size() || size < 0) {
             throw new ArrayListSliceOutOfBoundsException();
         }
 
