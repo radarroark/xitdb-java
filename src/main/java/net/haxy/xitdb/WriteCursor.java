@@ -26,9 +26,9 @@ public class WriteCursor extends ReadCursor {
     }
 
     public static class KeyValuePairCursor extends ReadCursor.KeyValuePairCursor {
-        WriteCursor valueCursor;
-        WriteCursor keyCursor;
-        byte[] hash;
+        public WriteCursor valueCursor;
+        public WriteCursor keyCursor;
+        public byte[] hash;
 
         public KeyValuePairCursor(WriteCursor valueCursor, WriteCursor keyCursor, byte[] hash) {
             super(valueCursor, keyCursor, hash);

@@ -8,8 +8,8 @@ import java.util.Stack;
 import net.haxy.xitdb.Database.DatabaseException;
 
 public class ReadCursor {
-    SlotPointer slotPtr;
-    Database db;
+    public SlotPointer slotPtr;
+    public Database db;
 
     public ReadCursor(SlotPointer slotPtr, Database db) {
         this.slotPtr = slotPtr;
@@ -107,9 +107,9 @@ public class ReadCursor {
     }
 
     public static class KeyValuePairCursor {
-        ReadCursor valueCursor;
-        ReadCursor keyCursor;
-        byte[] hash;
+        public ReadCursor valueCursor;
+        public ReadCursor keyCursor;
+        public byte[] hash;
 
         public KeyValuePairCursor(ReadCursor valueCursor, ReadCursor keyCursor, byte[] hash) {
             this.valueCursor = valueCursor;

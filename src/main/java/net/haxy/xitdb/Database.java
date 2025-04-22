@@ -7,10 +7,10 @@ import java.security.MessageDigest;
 import java.util.Arrays;
 
 public class Database {
-    Core core;
-    MessageDigest md;
-    Header header;
-    Long txStart;
+    public Core core;
+    public MessageDigest md;
+    public Header header;
+    public Long txStart;
 
     public static final short VERSION = 0;
     public static final byte[] MAGIC_NUMBER = "xit".getBytes();
