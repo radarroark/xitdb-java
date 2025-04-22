@@ -106,7 +106,17 @@ public class ReadCursor {
         }
     }
 
-    public static record KeyValuePairCursor(ReadCursor valueCursor, ReadCursor keyCursor, byte[] hash) {}
+    public static class KeyValuePairCursor {
+        ReadCursor valueCursor;
+        ReadCursor keyCursor;
+        byte[] hash;
+
+        public KeyValuePairCursor(ReadCursor valueCursor, ReadCursor keyCursor, byte[] hash) {
+            this.valueCursor = valueCursor;
+            this.keyCursor = keyCursor;
+            this.hash = hash;
+        }
+    }
 
     public KeyValuePairCursor readKeyValuePair() throws IOException, Database.UnexpectedTagException {
         var reader = this.db.core.reader();

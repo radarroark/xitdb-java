@@ -1027,13 +1027,13 @@ class DatabaseTest {
                 while (iter.hasNext()) {
                     var kvPairCursor = iter.next();
                     var kvPair = kvPairCursor.readKeyValuePair();
-                    if (Arrays.equals(kvPair.hash(), fooKey)) {
-                        var key = new String(kvPair.keyCursor().readBytes(MAX_READ_BYTES));
+                    if (Arrays.equals(kvPair.hash, fooKey)) {
+                        var key = new String(kvPair.keyCursor.readBytes(MAX_READ_BYTES));
                         assertEquals("foo", key);
-                        assertEquals(42, kvPair.valueCursor().slotPtr.slot().value());
+                        assertEquals(42, kvPair.valueCursor.slotPtr.slot().value());
                     } else {
-                        var value = kvPair.valueCursor().readBytes(MAX_READ_BYTES);
-                        assert(Arrays.equals(kvPair.hash(), db.md.digest(value)));
+                        var value = kvPair.valueCursor.readBytes(MAX_READ_BYTES);
+                        assert(Arrays.equals(kvPair.hash, db.md.digest(value)));
                     }
                     i += 1;
                 }
@@ -1051,9 +1051,9 @@ class DatabaseTest {
                 int i = 0;
                 while (iter.hasNext()) {
                     var kvPairCursor = iter.next();
-                    var kvPair = kvPairCursor.writeKeyValuePair();
-                    if (Arrays.equals(kvPair.hash(), fooKey)) {
-                        kvPair.keyCursor().write(new Database.Bytes("bar".getBytes()));
+                    var kvPair = kvPairCursor.readKeyValuePair();
+                    if (Arrays.equals(kvPair.hash, fooKey)) {
+                        kvPair.keyCursor.write(new Database.Bytes("bar".getBytes()));
                     }
                     i += 1;
                 }

@@ -25,14 +25,23 @@ public class WriteCursor extends ReadCursor {
         }
     }
 
-    public static record KeyValuePairCursor(WriteCursor valueCursor, WriteCursor keyCursor, byte[] hash) {}
+    public static class KeyValuePairCursor extends ReadCursor.KeyValuePairCursor {
+        WriteCursor valueCursor;
+        WriteCursor keyCursor;
+        byte[] hash;
 
-    public KeyValuePairCursor writeKeyValuePair() throws IOException, Database.UnexpectedTagException {
+        public KeyValuePairCursor(WriteCursor valueCursor, WriteCursor keyCursor, byte[] hash) {
+            super(valueCursor, keyCursor, hash);
+        }
+    }
+
+    @Override
+    public KeyValuePairCursor readKeyValuePair() throws IOException, Database.UnexpectedTagException {
         var kvPairCursor = super.readKeyValuePair();
         return new KeyValuePairCursor(
-            new WriteCursor(kvPairCursor.valueCursor().slotPtr, this.db),
-            new WriteCursor(kvPairCursor.keyCursor().slotPtr, this.db),
-            kvPairCursor.hash()
+            new WriteCursor(kvPairCursor.valueCursor.slotPtr, this.db),
+            new WriteCursor(kvPairCursor.keyCursor.slotPtr, this.db),
+            kvPairCursor.hash
         );
     }
 
