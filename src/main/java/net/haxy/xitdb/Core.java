@@ -5,9 +5,9 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 public interface Core {
-    public DataInput getReader();
+    public DataInput reader();
 
-    public DataOutput getWriter();
+    public DataOutput writer();
 
     public long length() throws IOException;
 

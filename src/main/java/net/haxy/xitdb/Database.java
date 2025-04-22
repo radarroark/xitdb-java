@@ -41,7 +41,7 @@ public class Database {
         }
 
         public static Header read(Core core) throws IOException {
-            var reader = core.getReader();
+            var reader = core.reader();
             var magicNumber = new byte[3];
             reader.readFully(magicNumber);
             var tag = Tag.valueOf(reader.readByte() & 0b0111_1111);
@@ -209,7 +209,7 @@ public class Database {
 
     private Header writeHeader(Hasher hasher) throws IOException {
         var header = new Header(hasher.id(), (short)hasher.md().getDigestLength(), VERSION, Tag.NONE, MAGIC_NUMBER);
-        var writer = this.core.getWriter();
+        var writer = this.core.writer();
         writer.write(header.toBytes());
         return header;
     }
@@ -223,7 +223,7 @@ public class Database {
         if (listSize == 0) return;
 
         this.core.seek(DATABASE_START + ArrayListHeader.length);
-        var reader = this.core.getReader();
+        var reader = this.core.reader();
         var headerFileSize = reader.readLong();
 
         if (headerFileSize == 0) return;
@@ -267,7 +267,7 @@ public class Database {
                     if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
 
                     if (isTopLevel) {
-                        var writer = this.core.getWriter();
+                        var writer = this.core.writer();
 
                         // if the top level array list hasn't been initialized
                         if (this.header.tag == Tag.NONE) {
@@ -298,7 +298,7 @@ public class Database {
                     switch (slotPtr.slot().tag()) {
                         case Tag.NONE -> {
                             // if slot was empty, insert the new list
-                            var writer = this.core.getWriter();
+                            var writer = this.core.writer();
                             this.core.seek(this.core.length());
                             var arrayListStart = this.core.length();
                             var arrayListPtr = arrayListStart + ArrayListHeader.length;
@@ -314,8 +314,8 @@ public class Database {
                             return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
                         }
                         case Tag.ARRAY_LIST -> {
-                            var reader = this.core.getReader();
-                            var writer = this.core.getWriter();
+                            var reader = this.core.reader();
+                            var writer = this.core.writer();
 
                             var arrayListStart = slotPtr.slot().value();
 
@@ -363,7 +363,7 @@ public class Database {
                     var index = arrayListGet.index();
 
                     this.core.seek(nextArrayListStart);
-                    var reader = this.core.getReader();
+                    var reader = this.core.reader();
                     var headerBytes = new byte[ArrayListHeader.length];
                     reader.readFully(headerBytes);
                     var header = ArrayListHeader.fromBytes(headerBytes);
@@ -389,7 +389,7 @@ public class Database {
                     var appendResult = readArrayListSlotAppend(nextArrayListStart, writeMode, isTopLevel);
                     var finalSlotPtr = readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), appendResult.slotPtr());
 
-                    var writer = this.core.getWriter();
+                    var writer = this.core.writer();
                     if (isTopLevel) {
                         this.core.seek(this.core.length());
                         var fileSize = this.core.length();
@@ -417,7 +417,7 @@ public class Database {
                     var finalSlotPtr = readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), slotPtr);
 
                     // update header
-                    var writer = this.core.getWriter();
+                    var writer = this.core.writer();
                     this.core.seek(nextArrayListStart);
                     writer.write(sliceHeader.toBytes());
 
@@ -427,7 +427,7 @@ public class Database {
                     if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
 
                     if (isTopLevel) {
-                        var writer = this.core.getWriter();
+                        var writer = this.core.writer();
 
                         // if the top level hash map hasn't been initialized
                         if (this.header.tag == Tag.NONE) {
@@ -451,7 +451,7 @@ public class Database {
                     switch (slotPtr.slot().tag()) {
                         case NONE -> {
                             // if slot was empty, insert the new map
-                            var writer = this.core.getWriter();
+                            var writer = this.core.writer();
                             this.core.seek(this.core.length());
                             var mapStart = this.core.length();
                             writer.write(new byte[INDEX_BLOCK_SIZE]);
@@ -462,8 +462,8 @@ public class Database {
                             return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPr);
                         }
                         case HASH_MAP -> {
-                            var reader = this.core.getReader();
-                            var writer = this.core.getWriter();
+                            var reader = this.core.reader();
+                            var writer = this.core.writer();
 
                             var mapStart = slotPtr.slot().value();
 
@@ -526,7 +526,7 @@ public class Database {
                     if (slotPtr.position() == null) throw new CursorNotWriteableException();
                     long position = slotPtr.position();
 
-                    var writer = this.core.getWriter();
+                    var writer = this.core.writer();
 
                     var data = writeData.data();
                     var slot = data == null ? new Slot() : switch (data) {
@@ -552,7 +552,7 @@ public class Database {
                                 yield new Slot(buffer.getLong(), Tag.SHORT_BYTES);
                             } else {
                                 var nextCursor = new WriteCursor(slotPtr, this);
-                                var cursorWriter = nextCursor.getWriter();
+                                var cursorWriter = nextCursor.writer();
                                 cursorWriter.write(bytes.value());
                                 cursorWriter.finish();
                                 yield cursorWriter.slot;
@@ -603,8 +603,8 @@ public class Database {
             throw new KeyOffsetExceededException();
         }
 
-        var reader = this.core.getReader();
-        var writer = this.core.getWriter();
+        var reader = this.core.reader();
+        var writer = this.core.writer();
 
         var i = new BigInteger(keyHash).shiftRight(keyOffset * BIT_COUNT).and(BIG_MASK).intValueExact();
         var slotPos = indexPos + (Slot.length * i);
@@ -739,8 +739,8 @@ public class Database {
             throw new KeyOffsetExceededException();
         }
 
-        var reader = this.core.getReader();
-        var writer = this.core.getWriter();
+        var reader = this.core.reader();
+        var writer = this.core.writer();
 
         // read block
         var slotBlock = new Slot[SLOT_COUNT];
@@ -846,8 +846,8 @@ public class Database {
     public static record ArrayListAppendResult(ArrayListHeader header, SlotPointer slotPtr) {}
 
     private ArrayListAppendResult readArrayListSlotAppend(long indexStart, WriteMode writeMode, boolean isTopLevel) throws IOException, DatabaseException {
-        var reader = this.core.getReader();
-        var writer = this.core.getWriter();
+        var reader = this.core.reader();
+        var writer = this.core.writer();
 
         this.core.seek(indexStart);
         var headerBytes = new byte[ArrayListHeader.length];
@@ -875,7 +875,7 @@ public class Database {
     }
 
     private SlotPointer readArrayListSlot(long indexPos, long key, byte shift, WriteMode writeMode, boolean isTopLevel) throws IOException, DatabaseException {
-        var reader = this.core.getReader();
+        var reader = this.core.reader();
 
         var i = (key >> (shift * BIT_COUNT)) & MASK;
         var slotPos = indexPos + (Slot.length * i);
@@ -895,7 +895,7 @@ public class Database {
                 switch (writeMode) {
                     case READ_ONLY -> throw new KeyNotFoundException();
                     case READ_WRITE -> {
-                        var writer = this.core.getWriter();
+                        var writer = this.core.writer();
                         this.core.seek(this.core.length());
                         var nextIndexPos = this.core.length();
                         writer.write(new byte[INDEX_BLOCK_SIZE]);
@@ -924,7 +924,7 @@ public class Database {
                             var indexBlock = new byte[INDEX_BLOCK_SIZE];
                             reader.readFully(indexBlock);
                             // copy it to the end
-                            var writer = this.core.getWriter();
+                            var writer = this.core.writer();
                             this.core.seek(this.core.length());
                             nextPtr = this.core.length();
                             writer.write(indexBlock);
@@ -943,7 +943,7 @@ public class Database {
     }
 
     private ArrayListHeader readArrayListSlice(long indexStart, long size) throws IOException, DatabaseException {
-        var reader = this.core.getReader();
+        var reader = this.core.reader();
 
         this.core.seek(indexStart);
         var headerBytes = new byte[ArrayListHeader.length];

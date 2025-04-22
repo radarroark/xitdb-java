@@ -12,12 +12,12 @@ public class CoreMemory implements Core {
     }
 
     @Override
-    public DataInput getReader() {
+    public DataInput reader() {
         return this.memory;
     }
 
     @Override
-    public DataOutput getWriter() {
+    public DataOutput writer() {
         return this.memory;
     }
 

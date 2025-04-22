@@ -67,7 +67,7 @@ public class ReadCursor {
     }
 
     public byte[] readBytes(Long maxSizeMaybe) throws IOException, Database.DatabaseException {
-        var reader = this.db.core.getReader();
+        var reader = this.db.core.reader();
 
         switch (this.slotPtr.slot().tag()) {
             case NONE -> {
@@ -109,7 +109,7 @@ public class ReadCursor {
     public static record KeyValuePairCursor(ReadCursor valueCursor, ReadCursor keyCursor, byte[] hash) {}
 
     public KeyValuePairCursor readKeyValuePair() throws IOException, Database.UnexpectedTagException {
-        var reader = this.db.core.getReader();
+        var reader = this.db.core.reader();
 
         if (this.slotPtr.slot().tag() != Tag.KV_PAIR) {
             throw new Database.UnexpectedTagException();
@@ -131,8 +131,8 @@ public class ReadCursor {
         );
     }
 
-    public Reader getReader() throws IOException, Database.DatabaseException {
-        var reader = this.db.core.getReader();
+    public Reader reader() throws IOException, Database.DatabaseException {
+        var reader = this.db.core.reader();
 
         switch (this.slotPtr.slot().tag()) {
             case BYTES -> {
@@ -160,7 +160,7 @@ public class ReadCursor {
     }
 
     public long count() throws IOException, Database.DatabaseException {
-        var reader = this.db.core.getReader();
+        var reader = this.db.core.reader();
         switch (this.slotPtr.slot().tag()) {
             case NONE -> {
                 return 0;
@@ -210,7 +210,7 @@ public class ReadCursor {
             if (this.size < this.relativePosition) throw new Database.EndOfStreamException();
             this.parent.db.core.seek(this.startPosition + this.relativePosition);
             var readSize = Math.min(buffer.length, (int) (this.size - this.relativePosition));
-            var reader = this.parent.db.core.getReader();
+            var reader = this.parent.db.core.reader();
             reader.readFully(buffer, 0, readSize);
             this.relativePosition += readSize;
             return readSize;
@@ -219,7 +219,7 @@ public class ReadCursor {
         public void readFully(byte[] bytes) throws IOException, Database.DatabaseException {
             if (this.size < this.relativePosition || this.size - this.relativePosition < bytes.length) throw new Database.EndOfStreamException();
             this.parent.db.core.seek(this.startPosition + this.relativePosition);
-            var reader = this.parent.db.core.getReader();
+            var reader = this.parent.db.core.reader();
             reader.readFully(bytes);
             this.relativePosition += bytes.length;
         }
@@ -298,7 +298,7 @@ public class ReadCursor {
                 case ARRAY_LIST -> {
                     var position = cursor.slotPtr.slot().value();
                     cursor.db.core.seek(position);
-                    var reader = cursor.db.core.getReader();
+                    var reader = cursor.db.core.reader();
                     var headerBytes = new byte[Database.ArrayListHeader.length];
                     reader.readFully(headerBytes);
                     var header = Database.ArrayListHeader.fromBytes(headerBytes);
@@ -370,7 +370,7 @@ public class ReadCursor {
             // find the block
             cursor.db.core.seek(position);
             // read the block
-            var reader = cursor.db.core.getReader();
+            var reader = cursor.db.core.reader();
             var indexBlockBytes = new byte[blockSize];
             reader.readFully(indexBlockBytes);
             // convert the block into slots
@@ -403,7 +403,7 @@ public class ReadCursor {
                         var nextPos = nextSlot.value();
                         cursor.db.core.seek(nextPos);
                         // read the block
-                        var reader = cursor.db.core.getReader();
+                        var reader = cursor.db.core.reader();
                         var indexBlockBytes = new byte[blockSize];
                         reader.readFully(indexBlockBytes);
                         // convert the block into slots

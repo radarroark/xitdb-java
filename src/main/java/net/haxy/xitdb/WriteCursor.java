@@ -36,8 +36,8 @@ public class WriteCursor extends ReadCursor {
         );
     }
 
-    public Writer getWriter() throws IOException {
-        var writer = this.db.core.getWriter();
+    public Writer writer() throws IOException {
+        var writer = this.db.core.writer();
         this.db.core.seek(this.db.core.length());
         var ptrPos = this.db.core.length();
         writer.writeLong(0);
@@ -64,7 +64,7 @@ public class WriteCursor extends ReadCursor {
         public void write(byte[] buffer) throws IOException, Database.DatabaseException {
             if (this.size < this.relativePosition) throw new Database.EndOfStreamException();
             this.parent.db.core.seek(this.startPosition + this.relativePosition);
-            var writer = this.parent.db.core.getWriter();
+            var writer = this.parent.db.core.writer();
             writer.write(buffer);
             this.relativePosition += buffer.length;
             if (this.relativePosition > this.size) {
@@ -73,7 +73,7 @@ public class WriteCursor extends ReadCursor {
         }
 
         public void finish() throws IOException, Database.DatabaseException {
-            var writer = this.parent.db.core.getWriter();
+            var writer = this.parent.db.core.writer();
 
             this.parent.db.core.seek(this.slot.value());
             writer.writeLong(this.size);

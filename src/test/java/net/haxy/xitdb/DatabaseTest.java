@@ -40,7 +40,7 @@ class DatabaseTest {
 
             // re-open without error
             var db = new Database(core, hasher);
-            var writer = db.core.getWriter();
+            var writer = db.core.writer();
             db.core.seek(0);
             writer.writeByte('g');
 
@@ -86,7 +86,7 @@ class DatabaseTest {
                 new Database.HashMapGet(new Database.HashMapGetValue(fooKey)),
                 new Database.Context((cursor) -> {
                     assertEquals(Tag.NONE, cursor.slot().tag());
-                    var writer = cursor.getWriter();
+                    var writer = cursor.writer();
                     writer.write("bar".getBytes());
                     writer.finish();
                 })
@@ -118,7 +118,7 @@ class DatabaseTest {
                     var value = cursor.readBytes(MAX_READ_BYTES);
                     assertEquals("bar", new String(value));
 
-                    var barReader = cursor.getReader();
+                    var barReader = cursor.reader();
 
                     // read into buffer
                     var barBytes = new byte[10];
@@ -163,7 +163,7 @@ class DatabaseTest {
                 new Database.Context((cursor) -> {
                     assertNotEquals(Tag.NONE, cursor.slot().tag());
 
-                    var writer = cursor.getWriter();
+                    var writer = cursor.writer();
                     writer.write("x".getBytes());
                     writer.write("x".getBytes());
                     writer.write("x".getBytes());
@@ -248,7 +248,7 @@ class DatabaseTest {
                 assertEquals(8, barCursor.count());
 
                 // make sure that SHORT_BYTES can be read with a reader
-                var barReader = barCursor.getReader();
+                var barReader = barCursor.reader();
                 var barValue = new byte[(int)barCursor.count()];
                 barReader.readFully(barValue);
                 assertEquals("shortstr", new String(barValue));
@@ -266,7 +266,7 @@ class DatabaseTest {
                         new Database.HashMapInit(),
                         new Database.HashMapGet(new Database.HashMapGetValue(fooKey)),
                         new Database.Context((cursor) -> {
-                            var writer = cursor.getWriter();
+                            var writer = cursor.writer();
                             writer.write("this value won't be visible".getBytes());
                             writer.finish();
                             throw new Exception();
@@ -416,7 +416,7 @@ class DatabaseTest {
                     var indexPos = mapCursor.slot().value();
                     assertEquals(Tag.HASH_MAP, mapCursor.slot().tag());
 
-                    var reader = core.getReader();
+                    var reader = core.reader();
 
                     var i = new BigInteger(fooKey).and(Database.BIG_MASK).intValueExact();
                     var slotPos = indexPos + (Slot.length * i);
@@ -463,7 +463,7 @@ class DatabaseTest {
                     var indexPos = mapCursor.slot().value();
                     assertEquals(Tag.HASH_MAP, mapCursor.slot().tag());
 
-                    var reader = core.getReader();
+                    var reader = core.reader();
 
                     var i = new BigInteger(fooKey).and(Database.BIG_MASK).intValueExact();
                     var slotPos = indexPos + (Slot.length * i);
@@ -502,7 +502,7 @@ class DatabaseTest {
                     var indexPos = mapCursor.slot().value();
                     assertEquals(Tag.HASH_MAP, mapCursor.slot().tag());
 
-                    var reader = core.getReader();
+                    var reader = core.reader();
 
                     var i = new BigInteger(fooKey).and(Database.BIG_MASK).intValueExact();
                     var slotPos = indexPos + (Slot.length * i);

@@ -13,12 +13,12 @@ public class CoreFile implements Core {
     }
 
     @Override
-    public DataInput getReader() {
+    public DataInput reader() {
         return this.file;
     }
 
     @Override
-    public DataOutput getWriter() {
+    public DataOutput writer() {
         return this.file;
     }
 
