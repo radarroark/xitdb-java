@@ -592,7 +592,9 @@ public class Database {
                 }
             }
         } finally {
-            this.txStart = null;
+            if (isTxStart) {
+                this.txStart = null;
+            }
         }
     }
 
