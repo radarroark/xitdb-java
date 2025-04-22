@@ -782,5 +782,110 @@ class DatabaseTest {
                 new Database.ArrayListGet(Database.SLOT_COUNT + 1)
             }));
         }
+
+        // append to inner array_list many times, filling up the array_list until a root overflow occurs
+        {
+            core.setLength(0);
+            var db = new Database(core, hasher);
+            var rootCursor = db.rootCursor();
+
+            for (int i = 0; i < Database.SLOT_COUNT + 1; i++) {
+                var value = "wat" + i;
+                rootCursor.writePath(new Database.PathPart[]{
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(new Database.Bytes(value.getBytes()))
+                });
+            }
+
+            for (int i = 0; i < Database.SLOT_COUNT + 1; i++) {
+                var value = "wat" + i;
+                var cursor = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.ArrayListGet(i),
+                });
+                var value2 = new String(cursor.readBytes(MAX_READ_BYTES));
+                assertEquals(value, value2);
+            }
+
+            // slice the inner array list so it contains exactly SLOT_COUNT,
+            // so we have the old root again
+            rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListGet(-1),
+                new Database.ArrayListInit(),
+                new Database.ArrayListSlice(Database.SLOT_COUNT)
+            });
+
+            // we can iterate over the remaining slots
+            for (int i = 0; i < Database.SLOT_COUNT; i ++) {
+                var value = "wat" + i;
+                var cursor = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.ArrayListGet(i),
+                });
+                var value2 = new String(cursor.readBytes(MAX_READ_BYTES));
+                assertEquals(value, value2);
+            }
+
+            // but we can't get the value that we sliced out of the array list
+            assertEquals(null, rootCursor.readPath(new Database.PathPart[]{
+                new Database.ArrayListGet(-1),
+                new Database.ArrayListGet(Database.SLOT_COUNT + 1)
+            }));
+
+            // overwrite the last value with hello
+            rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListAppend(),
+                new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                new Database.ArrayListInit(),
+                new Database.ArrayListGet(-1),
+                new Database.WriteData(new Database.Bytes("hello".getBytes()))
+            });
+
+            // read last value
+            {
+                var cursor = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.ArrayListGet(-1)
+                });
+                var value = new String(cursor.readBytes(MAX_READ_BYTES));
+                assertEquals("hello", value);
+            }
+
+            // overwrite the last value with goodbye
+            rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListAppend(),
+                new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                new Database.ArrayListInit(),
+                new Database.ArrayListGet(-1),
+                new Database.WriteData(new Database.Bytes("goodbye".getBytes()))
+            });
+
+            // read last value
+            {
+                var cursor = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-1),
+                    new Database.ArrayListGet(-1)
+                });
+                var value = new String(cursor.readBytes(MAX_READ_BYTES));
+                assertEquals("goodbye", value);
+            }
+
+            // previous last value is still hello
+            {
+                var cursor = rootCursor.readPath(new Database.PathPart[]{
+                    new Database.ArrayListGet(-2),
+                    new Database.ArrayListGet(-1)
+                });
+                var value = new String(cursor.readBytes(MAX_READ_BYTES));
+                assertEquals("hello", value);
+            }
+        }
     }
 }
