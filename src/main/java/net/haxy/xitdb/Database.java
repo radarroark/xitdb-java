@@ -155,12 +155,13 @@ public class Database {
         }
     }
 
-    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, ArrayListSlice, LinkedArrayListInit, HashMapInit, HashMapGet, HashMapRemove, WriteData, Context {}
+    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, ArrayListSlice, LinkedArrayListInit, LinkedArrayListAppend, HashMapInit, HashMapGet, HashMapRemove, WriteData, Context {}
     public static record ArrayListInit() implements PathPart {}
     public static record ArrayListGet(long index) implements PathPart {}
     public static record ArrayListAppend() implements PathPart {}
     public static record ArrayListSlice(long size) implements PathPart {}
     public static record LinkedArrayListInit() implements PathPart {}
+    public static record LinkedArrayListAppend() implements PathPart {}
     public static record HashMapInit() implements PathPart {}
     public static record HashMapGet(HashMapGetTarget target) implements PathPart {}
     public static record HashMapRemove(byte[] hash) implements PathPart {}
@@ -192,8 +193,32 @@ public class Database {
 
     public static record LinkedArrayListSlot(long size, Slot slot) {
         public static int length = 8 + Slot.length;
+
+        public LinkedArrayListSlot withSize(long size) {
+            return new LinkedArrayListSlot(size, this.slot);
+        }
+
+        public byte[] toBytes() {
+            var buffer = ByteBuffer.allocate(length);
+            buffer.put(this.slot.toBytes());
+            buffer.putLong(this.size);
+            return buffer.array();
+        }
+
+        public static LinkedArrayListSlot fromBytes(byte[] bytes) {
+            var buffer = ByteBuffer.wrap(bytes);
+            var slotBytes = new byte[Slot.length];
+            buffer.get(slotBytes);
+            var slot = Slot.fromBytes(slotBytes);
+            var size = checkLong(buffer.getLong());
+            return new LinkedArrayListSlot(size, slot);
+        }
     }
-    public static record LinkedArrayListSlotPointer(long leafCount, SlotPointer slotPtr) {}
+    public static record LinkedArrayListSlotPointer(SlotPointer slotPtr, long leafCount) {
+        public LinkedArrayListSlotPointer withSlotPointer(SlotPointer slotPtr) {
+            return new LinkedArrayListSlotPointer(slotPtr, this.leafCount);
+        }
+    }
 
     public static class DatabaseException extends RuntimeException {}
     public static class NotImplementedException extends DatabaseException {}
@@ -214,6 +239,8 @@ public class Database {
     public static class ArrayListSliceOutOfBoundsException extends DatabaseException {}
     public static class InvalidTopLevelTypeException extends DatabaseException {}
     public static class ExpectedUnsignedLongException extends DatabaseException {}
+    public static class NoAvailableSlotsException extends DatabaseException {}
+    public static class MustSetNewSlotsToFullException extends DatabaseException {}
 
     // init
 
@@ -529,6 +556,23 @@ public class Database {
                         }
                         default -> throw new UnexpectedTagException();
                     }
+                }
+                case LinkedArrayListAppend linkedArrayListAppend -> {
+                    if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
+
+                    if (slotPtr.slot().tag() != Tag.LINKED_ARRAY_LIST) throw new UnexpectedTagException();
+
+                    var nextArrayListStart = slotPtr.slot().value();
+
+                    var appendResult = readLinkedArrayListSlotAppend(nextArrayListStart, writeMode, isTopLevel);
+                    var finalSlotPtr = readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), appendResult.slotPtr().slotPtr());
+
+                    // update header
+                    var writer = this.core.writer();
+                    this.core.seek(nextArrayListStart);
+                    writer.write(appendResult.header().toBytes());
+
+                    return finalSlotPtr;
                 }
                 case HashMapInit hashMapInit -> {
                     if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
@@ -1082,6 +1126,206 @@ public class Database {
                 indexPos = slot.value();
             }
             return new ArrayListHeader(indexPos, size);
+        }
+    }
+
+    // linked_array_list
+
+    public static record LinkedArrayListAppendResult(LinkedArrayListHeader header, LinkedArrayListSlotPointer slotPtr) {}
+
+    private LinkedArrayListAppendResult readLinkedArrayListSlotAppend(long indexStart, WriteMode writeMode, boolean isTopLevel) throws IOException {
+        var reader = this.core.reader();
+        var writer = this.core.writer();
+
+        this.core.seek(indexStart);
+        var headerBytes = new byte[LinkedArrayListHeader.length];
+        reader.readFully(headerBytes);
+        var header = LinkedArrayListHeader.fromBytes(headerBytes);
+        var ptr = header.ptr;
+        var key = header.size;
+        var shift = header.shift;
+
+        LinkedArrayListSlotPointer slotPtr = null;
+        try {
+            slotPtr = readLinkedArrayListSlot(ptr, key, shift, writeMode, isTopLevel);
+        } catch (NoAvailableSlotsException e) {
+            // root overflow
+            this.core.seek(this.core.length());
+            var nextPtr = this.core.length();
+            writer.write(new byte[LINKED_ARRAY_LIST_INDEX_BLOCK_SIZE]);
+            this.core.seek(nextPtr);
+            writer.write(new LinkedArrayListSlot(header.size, new Slot(ptr, Tag.INDEX, true)).toBytes());
+            ptr = nextPtr;
+            shift += 1;
+            slotPtr = readLinkedArrayListSlot(ptr, key, shift, writeMode, isTopLevel);
+        }
+
+        // newly-appended slots must have full set to true
+        // or else indexing will be screwed up
+        var newSlot = new Slot(0, Tag.NONE, true);
+        slotPtr = slotPtr.withSlotPointer(slotPtr.slotPtr().withSlot(newSlot));
+        if (slotPtr.slotPtr().position() == null) throw new CursorNotWriteableException();
+        long position = slotPtr.slotPtr().position();
+        this.core.seek(position);
+        writer.write(new LinkedArrayListSlot(0, newSlot).toBytes());
+        if (header.size < SLOT_COUNT && shift > 0) {
+            throw new MustSetNewSlotsToFullException();
+        }
+
+        return new LinkedArrayListAppendResult(
+            new LinkedArrayListHeader(shift, ptr, header.size + 1),
+            slotPtr
+        );
+    }
+
+    private static long blockLeafCount(LinkedArrayListSlot[] block, byte shift, byte i) {
+        long n = 0;
+        // for leaf nodes, count all non-empty slots along with the slot being accessed
+        if (shift == 0) {
+            for (int blockI = 0; blockI < block.length; blockI++) {
+                var blockSlot = block[blockI];
+                if (blockSlot.slot().tag() != Tag.NONE || blockSlot.slot().full() || blockI == i) {
+                    n += 1;
+                }
+            }
+        }
+        // for non-leaf nodes, add up their sizes
+        else {
+            for (LinkedArrayListSlot blockSlot : block) {
+                n += blockSlot.size();
+            }
+        }
+        return n;
+    }
+
+    private static long slotLeafCount(LinkedArrayListSlot slot, byte shift) {
+        if (shift == 0) {
+            if (slot.slot().tag() == Tag.NONE && !slot.slot().full()) {
+                return 0;
+            } else {
+                return 1;
+            }
+        } else {
+            return slot.size();
+        }
+    }
+
+    private static record KeyAndIndex(long key, byte index) {}
+
+    private static KeyAndIndex keyAndIndexForLinkedArrayList(LinkedArrayListSlot[] slotBlock, long key, byte shift) {
+        long nextKey = key;
+        byte i = 0;
+        long maxLeafCount = (long) (shift == 0 ? 1 : Math.pow(SLOT_COUNT, shift));
+        while (true) {
+            var slotLeafCount = slotLeafCount(slotBlock[i], shift);
+            if (nextKey == slotLeafCount) {
+                // if the slot's leaf count is at its maximum
+                // or it is full, we have to skip to the next slot
+                if (slotLeafCount == maxLeafCount || slotBlock[i].slot().full()) {
+                    if (i < SLOT_COUNT - 1) {
+                        nextKey -= slotLeafCount;
+                        i += 1;
+                    } else {
+                        return null;
+                    }
+                }
+                break;
+            } else if (nextKey < slotLeafCount) {
+                break;
+            } else if (i < SLOT_COUNT - 1) {
+                nextKey -= slotLeafCount;
+                i += 1;
+            } else {
+                return null;
+            }
+        }
+        return new KeyAndIndex(nextKey, i);
+    }
+
+    private LinkedArrayListSlotPointer readLinkedArrayListSlot(long indexPos, long key, byte shift, WriteMode writeMode, boolean isTopLevel) throws IOException {
+        var reader = this.core.reader();
+        var writer = this.core.writer();
+
+        var slotBlock = new LinkedArrayListSlot[SLOT_COUNT];
+        {
+            this.core.seek(indexPos);
+            var indexBlock = new byte[LINKED_ARRAY_LIST_INDEX_BLOCK_SIZE];
+            reader.readFully(indexBlock);
+
+            var buffer = ByteBuffer.wrap(indexBlock);
+            for (int i = 0; i < slotBlock.length; i++) {
+                var slotBytes = new byte[LinkedArrayListSlot.length];
+                buffer.get(slotBytes);
+                slotBlock[i] = LinkedArrayListSlot.fromBytes(slotBytes);
+            }
+        }
+
+        var keyAndIndex = keyAndIndexForLinkedArrayList(slotBlock, key, shift);
+        if (keyAndIndex == null) throw new NoAvailableSlotsException();
+        var nextKey = keyAndIndex.key;
+        var i = keyAndIndex.index;
+        var slot = slotBlock[i];
+        var slotPos = indexPos + (LinkedArrayListSlot.length * i);
+
+        if (shift == 0) {
+            var leafCount = blockLeafCount(slotBlock, shift, i);
+            return new LinkedArrayListSlotPointer(new SlotPointer(slotPos, slot.slot()), leafCount);
+        }
+
+        var ptr = slot.slot().value();
+
+        switch (slot.slot().tag()) {
+            case NONE -> {
+                switch (writeMode) {
+                    case READ_ONLY -> throw new KeyNotFoundException();
+                    case READ_WRITE -> {
+                        this.core.seek(this.core.length());
+                        var nextIndexPos = this.core.length();
+                        writer.write(new byte[LINKED_ARRAY_LIST_INDEX_BLOCK_SIZE]);
+
+                        var nextSlotPtr = readLinkedArrayListSlot(nextIndexPos, nextKey, (byte) (shift - 1), writeMode, isTopLevel);
+                        slotBlock[i] = slotBlock[i].withSize(nextSlotPtr.leafCount());
+                        var leafCount = blockLeafCount(slotBlock, shift, i);
+                        this.core.seek(slotPos);
+                        writer.write(new LinkedArrayListSlot(nextSlotPtr.leafCount(), new Slot(nextIndexPos, Tag.INDEX)).toBytes());
+                        return new LinkedArrayListSlotPointer(nextSlotPtr.slotPtr(), leafCount);
+                    }
+                    default -> throw new UnreachableException();
+                }
+            }
+            case INDEX -> {
+                var nextPtr = ptr;
+                if (writeMode == WriteMode.READ_WRITE && !isTopLevel) {
+                    if (this.txStart != null) {
+                        if (nextPtr < this.txStart) {
+                            // read existing block
+                            this.core.seek(ptr);
+                            var indexBlock = new byte[LINKED_ARRAY_LIST_INDEX_BLOCK_SIZE];
+                            reader.readFully(indexBlock);
+                            // copy it to the end
+                            this.core.seek(this.core.length());
+                            nextPtr = this.core.length();
+                            writer.write(indexBlock);
+                        }
+                    } else if (this.header.tag() == Tag.ARRAY_LIST) {
+                        throw new ExpectedTxStartException();
+                    }
+                }
+
+                var nextSlotPtr = readLinkedArrayListSlot(nextPtr, nextKey, (byte) (shift - 1), writeMode, isTopLevel);
+
+                slotBlock[i] = slotBlock[i].withSize(nextSlotPtr.leafCount());
+                var leafCount = blockLeafCount(slotBlock, shift, i);
+
+                if (writeMode == WriteMode.READ_WRITE && !isTopLevel) {
+                    // make slot point to block
+                    this.core.seek(slotPos);
+                    writer.write(new LinkedArrayListSlot(nextSlotPtr.leafCount(), new Slot(nextPtr, Tag.INDEX)).toBytes());
+                }
+
+                return new LinkedArrayListSlotPointer(nextSlotPtr.slotPtr(), leafCount);
+            }
+            default -> throw new UnexpectedTagException();
         }
     }
 }

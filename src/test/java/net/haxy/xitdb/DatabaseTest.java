@@ -51,7 +51,9 @@ class DatabaseTest {
                     values.add(n);
                     cursor.writePath(new Database.PathPart[]{
                         new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes()))),
-                        new Database.LinkedArrayListInit()
+                        new Database.LinkedArrayListInit(),
+                        new Database.LinkedArrayListAppend(),
+                        new Database.WriteData(new Database.Uint(n))
                     });
                 }
             })
@@ -87,7 +89,7 @@ class DatabaseTest {
         // save hash id in header
         {
             var hashId = Hasher.stringToId("sha1");
-            var hasherWithHashId = new Hasher(MessageDigest.getInstance("SHA-1"), hashId);
+            var hasherWithHashId = new Hasher(MessageDigest.getInstance("SHA-256"), hashId);
 
             // make empty database
             core.setLength(0);
