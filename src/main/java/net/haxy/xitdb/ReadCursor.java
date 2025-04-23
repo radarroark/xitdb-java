@@ -180,7 +180,13 @@ public class ReadCursor {
                 var header = Database.ArrayListHeader.fromBytes(headerBytes);
                 return header.size();
             }
-            case LINKED_ARRAY_LIST -> throw new Database.NotImplementedException();
+            case LINKED_ARRAY_LIST -> {
+                this.db.core.seek(this.slotPtr.slot().value());
+                var headerBytes = new byte[Database.LinkedArrayListHeader.length];
+                reader.readFully(headerBytes);
+                var header = Database.LinkedArrayListHeader.fromBytes(headerBytes);
+                return header.size();
+            }
             case BYTES -> {
                 this.db.core.seek(this.slotPtr.slot().value());
                 return reader.readLong();
@@ -314,7 +320,17 @@ public class ReadCursor {
                     this.index = 0;
                     this.stack = initStack(cursor, header.ptr(), Database.INDEX_BLOCK_SIZE);
                 }
-                case LINKED_ARRAY_LIST -> throw new Database.NotImplementedException();
+                case LINKED_ARRAY_LIST -> {
+                    var position = cursor.slotPtr.slot().value();
+                    cursor.db.core.seek(position);
+                    var reader = cursor.db.core.reader();
+                    var headerBytes = new byte[Database.LinkedArrayListHeader.length];
+                    reader.readFully(headerBytes);
+                    var header = Database.LinkedArrayListHeader.fromBytes(headerBytes);
+                    this.size = cursor.count();
+                    this.index = 0;
+                    this.stack = initStack(cursor, header.ptr(), Database.LINKED_ARRAY_LIST_INDEX_BLOCK_SIZE);
+                }
                 case HASH_MAP -> {
                     this.size = 0;
                     this.index = 0;
@@ -329,7 +345,7 @@ public class ReadCursor {
             return switch (this.cursor.slotPtr.slot().tag()) {
                 case NONE -> false;
                 case ARRAY_LIST -> this.index < this.size;
-                case LINKED_ARRAY_LIST -> false;
+                case LINKED_ARRAY_LIST -> this.index < this.size;
                 case HASH_MAP -> {
                     // the only way to determine if there's another value in the
                     // hash map is to try to retrieve it, so we store it in a
@@ -357,7 +373,11 @@ public class ReadCursor {
                         this.index += 1;
                         return nextInternal(Database.INDEX_BLOCK_SIZE);
                     }
-                    case LINKED_ARRAY_LIST -> throw new Database.NotImplementedException();
+                    case LINKED_ARRAY_LIST -> {
+                        if (!hasNext()) return null;
+                        this.index += 1;
+                        return nextInternal(Database.LINKED_ARRAY_LIST_INDEX_BLOCK_SIZE);
+                    }
                     case HASH_MAP -> {
                         if (this.nextCursorMaybe != null) {
                             var nextCursor = this.nextCursorMaybe;
@@ -388,6 +408,8 @@ public class ReadCursor {
                 var slotBytes = new byte[Slot.length];
                 buffer.get(slotBytes);
                 indexBlock[i] = Slot.fromBytes(slotBytes);
+                // linked array list has larger slots so we need to skip over the rest
+                buffer.position(buffer.position() + ((blockSize / Database.SLOT_COUNT) - Slot.length));
             }
             // init the stack
             var stack = new Stack<Level>();

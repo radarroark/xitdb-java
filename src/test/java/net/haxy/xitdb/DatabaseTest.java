@@ -77,6 +77,24 @@ class DatabaseTest {
                     }).slotPtr.slot().value();
                     assertEquals(val, n);
                 }
+
+                // check all values in the new slice with an iterator
+                {
+                    var iter = evenListSliceCursor.iterator();
+                    int i = 0;
+                    while (iter.hasNext()) {
+                        var numCursor = iter.next();
+                        assertEquals(values.get((int)sliceOffset + i), numCursor.readUint());
+                        i += 1;
+                    }
+                    assertEquals(sliceSize, i);
+                }
+
+                // there are no extra items
+                assertEquals(null, cursor.readPath(new Database.PathPart[]{
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-slice".getBytes()))),
+                    new Database.LinkedArrayListGet(sliceSize)
+                }));
             })
         });
     }
