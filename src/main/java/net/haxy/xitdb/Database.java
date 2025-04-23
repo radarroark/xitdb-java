@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.Arrays;
 
 public class Database {
@@ -155,13 +156,14 @@ public class Database {
         }
     }
 
-    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, ArrayListSlice, LinkedArrayListInit, LinkedArrayListAppend, HashMapInit, HashMapGet, HashMapRemove, WriteData, Context {}
+    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, ArrayListSlice, LinkedArrayListInit, LinkedArrayListAppend, LinkedArrayListSlice, HashMapInit, HashMapGet, HashMapRemove, WriteData, Context {}
     public static record ArrayListInit() implements PathPart {}
     public static record ArrayListGet(long index) implements PathPart {}
     public static record ArrayListAppend() implements PathPart {}
     public static record ArrayListSlice(long size) implements PathPart {}
     public static record LinkedArrayListInit() implements PathPart {}
     public static record LinkedArrayListAppend() implements PathPart {}
+    public static record LinkedArrayListSlice(long offset, long size) implements PathPart {}
     public static record HashMapInit() implements PathPart {}
     public static record HashMapGet(HashMapGetTarget target) implements PathPart {}
     public static record HashMapRemove(byte[] hash) implements PathPart {}
@@ -214,11 +216,14 @@ public class Database {
             return new LinkedArrayListSlot(size, slot);
         }
     }
+
     public static record LinkedArrayListSlotPointer(SlotPointer slotPtr, long leafCount) {
         public LinkedArrayListSlotPointer withSlotPointer(SlotPointer slotPtr) {
             return new LinkedArrayListSlotPointer(slotPtr, this.leafCount);
         }
     }
+
+    public static record LinkedArrayListBlockInfo(LinkedArrayListSlot[] block, byte i, LinkedArrayListSlot parentSlot) {}
 
     public static class DatabaseException extends RuntimeException {}
     public static class NotImplementedException extends DatabaseException {}
@@ -237,10 +242,13 @@ public class Database {
     public static class EndOfStreamException extends DatabaseException {}
     public static class InvalidOffsetException extends DatabaseException {}
     public static class ArrayListSliceOutOfBoundsException extends DatabaseException {}
+    public static class LinkedArrayListSliceOutOfBoundsException extends DatabaseException {}
     public static class InvalidTopLevelTypeException extends DatabaseException {}
     public static class ExpectedUnsignedLongException extends DatabaseException {}
     public static class NoAvailableSlotsException extends DatabaseException {}
     public static class MustSetNewSlotsToFullException extends DatabaseException {}
+    public static class EmptySlotException extends DatabaseException {}
+    public static class ExpectedRootNodeException extends DatabaseException {}
 
     // init
 
@@ -571,6 +579,23 @@ public class Database {
                     var writer = this.core.writer();
                     this.core.seek(nextArrayListStart);
                     writer.write(appendResult.header().toBytes());
+
+                    return finalSlotPtr;
+                }
+                case LinkedArrayListSlice linkedArrayListSlice -> {
+                    if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
+
+                    if (slotPtr.slot().tag() != Tag.LINKED_ARRAY_LIST) throw new UnexpectedTagException();
+
+                    var nextArrayListStart = slotPtr.slot().value();
+
+                    var sliceHeader = readLinkedArrayListSlice(nextArrayListStart, linkedArrayListSlice.offset(), linkedArrayListSlice.size());
+                    var finalSlotPtr = readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), slotPtr);
+
+                    // update header
+                    var writer = this.core.writer();
+                    this.core.seek(nextArrayListStart);
+                    writer.write(sliceHeader.toBytes());
 
                     return finalSlotPtr;
                 }
@@ -1327,5 +1352,218 @@ public class Database {
             }
             default -> throw new UnexpectedTagException();
         }
+    }
+
+    private void readLinkedArrayListBlocks(long indexPos, long key, byte shift, ArrayList<LinkedArrayListBlockInfo> blocks) throws IOException {
+        var reader = this.core.reader();
+
+        var slotBlock = new LinkedArrayListSlot[SLOT_COUNT];
+        {
+            this.core.seek(indexPos);
+            var indexBlock = new byte[LINKED_ARRAY_LIST_INDEX_BLOCK_SIZE];
+            reader.readFully(indexBlock);
+
+            var buffer = ByteBuffer.wrap(indexBlock);
+            for (int i = 0; i < slotBlock.length; i++) {
+                var slotBytes = new byte[LinkedArrayListSlot.length];
+                buffer.get(slotBytes);
+                slotBlock[i] = LinkedArrayListSlot.fromBytes(slotBytes);
+            }
+        }
+
+        var keyAndIndex = keyAndIndexForLinkedArrayList(slotBlock, key, shift);
+        if (keyAndIndex == null) throw new NoAvailableSlotsException();
+        var nextKey = keyAndIndex.key;
+        var i = keyAndIndex.index;
+        var leafCount = blockLeafCount(slotBlock, shift, i);
+
+        blocks.add(new LinkedArrayListBlockInfo(slotBlock, i, new LinkedArrayListSlot(leafCount, new Slot(indexPos, Tag.INDEX))));
+
+        if (shift == 0) {
+            return;
+        }
+
+        var slot = slotBlock[i];
+        switch (slot.slot().tag()) {
+            case NONE -> throw new EmptySlotException();
+            case INDEX -> readLinkedArrayListBlocks(slot.slot().value(), nextKey, (byte) (shift - 1), blocks);
+            default -> throw new UnexpectedTagException();
+        }
+    }
+
+    private void populateArray(LinkedArrayListSlot[] arr) {
+        for (int i = 0; i < arr.length; i++) {
+            arr[i] = new LinkedArrayListSlot(0, new Slot());
+        }
+    }
+
+    private LinkedArrayListHeader readLinkedArrayListSlice(long indexStart, long offset, long size) throws IOException {
+        var reader = this.core.reader();
+        var writer = this.core.writer();
+
+        this.core.seek(indexStart);
+        var headerBytes = new byte[LinkedArrayListHeader.length];
+        reader.readFully(headerBytes);
+        var header = LinkedArrayListHeader.fromBytes(headerBytes);
+
+        if (offset + size > header.size) {
+            throw new LinkedArrayListSliceOutOfBoundsException();
+        }
+
+        // read the list's left blocks
+        var leftBlocks = new ArrayList<LinkedArrayListBlockInfo>();
+        readLinkedArrayListBlocks(header.ptr, offset, header.shift, leftBlocks);
+
+        // read the list's right blocks
+        var rightBlocks = new ArrayList<LinkedArrayListBlockInfo>();
+        var rightKey = offset + size == 0 ? 0 : offset + size - 1;
+        readLinkedArrayListBlocks(header.ptr, rightKey, header.shift, rightBlocks);
+
+        // create the new blocks
+        var blockCount = leftBlocks.size();
+        var nextSlots = new LinkedArrayListSlot[]{ null, null };
+        byte nextShift = 0;
+        for (int i = 0; i < blockCount; i++) {
+            var isLeafNode = nextSlots[0] == null;
+
+            var leftBlock = leftBlocks.get(blockCount - i - 1);
+            var rightBlock = rightBlocks.get(blockCount - i - 1);
+            var origBlockInfos = new LinkedArrayListBlockInfo[]{
+                leftBlock,
+                rightBlock
+            };
+            var nextBlocks = new LinkedArrayListSlot[][]{ null, null };
+
+            if (leftBlock.parentSlot().slot().value() == rightBlock.parentSlot().slot().value()) {
+                int slotI = 0;
+                var newRootBlock = new LinkedArrayListSlot[SLOT_COUNT];
+                populateArray(newRootBlock);
+                // left slot
+                if (nextSlots[0] != null) {
+                    newRootBlock[slotI] = nextSlots[0];
+                } else {
+                    newRootBlock[slotI] = leftBlock.block()[leftBlock.i()];
+                }
+                slotI += 1;
+                // middle slots
+                if (leftBlock.i() != rightBlock.i()) {
+                    for (int j = leftBlock.i() + 1; j < rightBlock.i(); j++) {
+                        var middleSlot = leftBlock.block()[j];
+                        newRootBlock[slotI] = middleSlot;
+                        slotI += 1;
+                    }
+                }
+                // right slot
+                if (nextSlots[1] != null) {
+                    newRootBlock[slotI] = nextSlots[1];
+                } else {
+                    newRootBlock[slotI] = leftBlock.block()[rightBlock.i()];
+                }
+                nextBlocks[0] = newRootBlock;
+            } else {
+                int slotI = 0;
+                var newLeftBlock = new LinkedArrayListSlot[SLOT_COUNT];
+                populateArray(newLeftBlock);
+
+                // first slot
+                if (nextSlots[0] != null) {
+                    newLeftBlock[slotI] = nextSlots[0];
+                } else {
+                    newLeftBlock[slotI] = leftBlock.block()[leftBlock.i()];
+                }
+                slotI += 1;
+                // rest of slots
+                for (var j = leftBlock.i() + 1; j < leftBlock.block().length; j++) {
+                    var nextSlot = leftBlock.block()[j];
+                    newLeftBlock[slotI] = nextSlot;
+                    slotI += 1;
+                }
+                nextBlocks[0] = newLeftBlock;
+
+                slotI = 0;
+                var newRightBlock = new LinkedArrayListSlot[SLOT_COUNT];
+                populateArray(newRightBlock);
+                // first slots
+                for (var j = 0; j < rightBlock.i(); j++) {
+                    var firstSlot = rightBlock.block()[j];
+                    newRightBlock[slotI] = firstSlot;
+                    slotI += 1;
+                }
+                // last slot
+                if (nextSlots[1] != null) {
+                    newRightBlock[slotI] = nextSlots[1];
+                } else {
+                    newRightBlock[slotI] = rightBlock.block()[rightBlock.i()];
+                }
+                nextBlocks[1] = newRightBlock;
+
+                nextShift += 1;
+            }
+
+            // clear the next slots
+            nextSlots = new LinkedArrayListSlot[]{ null, null };
+
+            // write the block(s)
+            this.core.seek(this.core.length());
+            for (int j = 0; j < 2; j++) {
+                var blockMaybe = nextBlocks[j];
+                var origBlockInfo = origBlockInfos[j];
+
+                if (blockMaybe != null) {
+                    // determine if the block changed compared to the original block
+                    boolean eql = true;
+                    for (int k = 0; k < blockMaybe.length; k++) {
+                        var blockSlot = blockMaybe[k];
+                        var origSlot = origBlockInfo.block()[k];
+                        if (!blockSlot.slot().equals(origSlot.slot())) {
+                            eql = false;
+                            break;
+                        }
+                    }
+                    // if there is no change, just use the original block
+                    if (eql) {
+                        nextSlots[j] = origBlockInfo.parentSlot();
+                    }
+                    // otherwise make a new block
+                    else {
+                        var nextPtr = this.core.position();
+                        long leafCount = 0;
+                        for (int k = 0; k < blockMaybe.length; k++) {
+                            var blockSlot = blockMaybe[k];
+                            writer.write(blockSlot.toBytes());
+                            if (isLeafNode) {
+                                if (blockSlot.slot().tag() != Tag.NONE) {
+                                    leafCount += 1;
+                                }
+                            } else {
+                                leafCount += blockSlot.size();
+                            }
+                        }
+                        nextSlots[j] = new LinkedArrayListSlot(
+                            leafCount,
+                            // only the left side needs to be full,
+                            // because it can have a gap that affects indexing
+                            switch (j) {
+                                // left
+                                case 0 -> new Slot(nextPtr, Tag.INDEX, true);
+                                // right
+                                case 1 -> new Slot(nextPtr, Tag.INDEX);
+                                default -> throw new UnreachableException();
+                            }
+                        );
+                    }
+                }
+            }
+
+            // we found the root node so we can exit
+            if (nextSlots[0] != null && nextSlots[1] == null) {
+                break;
+            }
+        }
+
+        var rootSlot = nextSlots[0];
+        if (rootSlot == null) throw new ExpectedRootNodeException();
+
+        return new LinkedArrayListHeader(nextShift, rootSlot.slot().value(), size);
     }
 }

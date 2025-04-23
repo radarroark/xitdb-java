@@ -56,6 +56,17 @@ class DatabaseTest {
                         new Database.WriteData(new Database.Uint(n))
                     });
                 }
+
+                // slice list
+                var evenListCursor = cursor.readPath(new Database.PathPart[]{
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes())))
+                });
+                var evenListSliceCursor = cursor.writePath(new Database.PathPart[]{
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-slice".getBytes()))),
+                    new Database.WriteData(evenListCursor.slotPtr.slot()),
+                    new Database.LinkedArrayListInit(),
+                    new Database.LinkedArrayListSlice(sliceOffset, sliceSize)
+                });
             })
         });
     }
