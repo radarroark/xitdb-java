@@ -67,6 +67,16 @@ class DatabaseTest {
                     new Database.LinkedArrayListInit(),
                     new Database.LinkedArrayListSlice(sliceOffset, sliceSize)
                 });
+
+                // check all the values in the new slice
+                for (int i = 0; i < sliceSize; i++) {
+                    var val = values.get((int) sliceOffset + i);
+                    var n = cursor.readPath(new Database.PathPart[]{
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-slice".getBytes()))),
+                        new Database.LinkedArrayListGet(i)
+                    }).slotPtr.slot().value();
+                    assertEquals(val, n);
+                }
             })
         });
     }

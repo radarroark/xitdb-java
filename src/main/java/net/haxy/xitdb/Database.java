@@ -156,12 +156,13 @@ public class Database {
         }
     }
 
-    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, ArrayListSlice, LinkedArrayListInit, LinkedArrayListAppend, LinkedArrayListSlice, HashMapInit, HashMapGet, HashMapRemove, WriteData, Context {}
+    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, ArrayListSlice, LinkedArrayListInit, LinkedArrayListGet, LinkedArrayListAppend, LinkedArrayListSlice, HashMapInit, HashMapGet, HashMapRemove, WriteData, Context {}
     public static record ArrayListInit() implements PathPart {}
     public static record ArrayListGet(long index) implements PathPart {}
     public static record ArrayListAppend() implements PathPart {}
     public static record ArrayListSlice(long size) implements PathPart {}
     public static record LinkedArrayListInit() implements PathPart {}
+    public static record LinkedArrayListGet(long index) implements PathPart {}
     public static record LinkedArrayListAppend() implements PathPart {}
     public static record LinkedArrayListSlice(long offset, long size) implements PathPart {}
     public static record HashMapInit() implements PathPart {}
@@ -564,6 +565,29 @@ public class Database {
                         }
                         default -> throw new UnexpectedTagException();
                     }
+                }
+                case LinkedArrayListGet linkedArrayListGet -> {
+                    switch (slotPtr.slot().tag()) {
+                        case NONE -> throw new KeyNotFoundException();
+                        case LINKED_ARRAY_LIST -> {}
+                        default -> throw new UnexpectedTagException();
+                    }
+
+                    var index = linkedArrayListGet.index;
+
+                    this.core.seek(slotPtr.slot().value());
+                    var reader = this.core.reader();
+                    var headerBytes = new byte[LinkedArrayListHeader.length];
+                    reader.readFully(headerBytes);
+                    var header = LinkedArrayListHeader.fromBytes(headerBytes);
+                    if (index >= header.size() || index < -header.size()) {
+                        throw new KeyNotFoundException();
+                    }
+
+                    var key = index < 0 ? header.size - Math.abs(index) : index;
+                    var finalSlotPtr = readLinkedArrayListSlot(header.ptr(), key, header.shift(), writeMode, isTopLevel);
+
+                    return readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), finalSlotPtr.slotPtr());
                 }
                 case LinkedArrayListAppend linkedArrayListAppend -> {
                     if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
