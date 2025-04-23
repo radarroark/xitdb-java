@@ -1114,6 +1114,13 @@ class DatabaseTest {
         {
             // slice linked_array_list
             testSlice(core, hasher, Database.SLOT_COUNT * 5 + 1, 10, 5);
+            testSlice(core, hasher, Database.SLOT_COUNT * 5 + 1, 0, Database.SLOT_COUNT * 2);
+            testSlice(core, hasher, Database.SLOT_COUNT * 5, Database.SLOT_COUNT * 3, Database.SLOT_COUNT);
+            testSlice(core, hasher, Database.SLOT_COUNT * 5, Database.SLOT_COUNT * 3, Database.SLOT_COUNT * 2);
+            testSlice(core, hasher, Database.SLOT_COUNT * 2, 10, Database.SLOT_COUNT);
+            testSlice(core, hasher, 2, 0, 2);
+            testSlice(core, hasher, 2, 1, 1);
+            testSlice(core, hasher, 1, 0, 0);
         }
     }
 }
