@@ -133,6 +133,107 @@ class DatabaseTest {
         });
     }
 
+    void testConcat(Core core, Hasher hasher, long listASize, long listBSize) throws Exception {
+        core.setLength(0);
+        var db = new Database(core, hasher);
+        var rootCursor = db.rootCursor();
+
+        var values = new ArrayList<Long>();
+
+        rootCursor.writePath(new Database.PathPart[]{
+            new Database.ArrayListInit(),
+            new Database.ArrayListAppend(),
+            new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+            new Database.HashMapInit(),
+            new Database.Context((cursor) -> {
+                // create even list
+                cursor.writePath(new Database.PathPart[]{
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes()))),
+                    new Database.LinkedArrayListInit()
+                });
+                for (int i = 0; i < listASize; i++) {
+                    long n = i * 2;
+                    values.add(n);
+                    cursor.writePath(new Database.PathPart[]{
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes()))),
+                        new Database.LinkedArrayListInit(),
+                        new Database.LinkedArrayListAppend(),
+                        new Database.WriteData(new Database.Uint(n))
+                    });
+                }
+
+                // create odd list
+                cursor.writePath(new Database.PathPart[]{
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("odd".getBytes()))),
+                    new Database.LinkedArrayListInit()
+                });
+                for (int i = 0; i < listBSize; i++) {
+                    long n = (i * 2) + 1;
+                    values.add(n);
+                    cursor.writePath(new Database.PathPart[]{
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("odd".getBytes()))),
+                        new Database.LinkedArrayListInit(),
+                        new Database.LinkedArrayListAppend(),
+                        new Database.WriteData(new Database.Uint(n))
+                    });
+                }
+            })
+        });
+
+        rootCursor.writePath(new Database.PathPart[]{
+            new Database.ArrayListInit(),
+            new Database.ArrayListAppend(),
+            new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+            new Database.HashMapInit(),
+            new Database.Context((cursor) -> {
+                // get the even list
+                var evenListCursor = cursor.readPath(new Database.PathPart[]{
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes())))
+                });
+
+                // get the odd list
+                var oddListCursor = cursor.readPath(new Database.PathPart[]{
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("odd".getBytes())))
+                });
+
+                // concat the lists
+                var comboListCursor = cursor.writePath(new Database.PathPart[]{
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("combo".getBytes()))),
+                    new Database.WriteData(evenListCursor.slotPtr.slot()),
+                    new Database.LinkedArrayListInit(),
+                    new Database.LinkedArrayListConcat(oddListCursor.slotPtr.slot())
+                });
+
+                // check all values in the new list
+                for (int i = 0; i < values.size(); i++) {
+                    var n = cursor.readPath(new Database.PathPart[]{
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("combo".getBytes()))),
+                        new Database.LinkedArrayListGet(i)
+                    }).slotPtr.slot().value();
+                    assertEquals(values.get(i), n);
+                }
+
+                // check all values in the new slice with an iterator
+                {
+                    var iter = comboListCursor.iterator();
+                    int i = 0;
+                    while (iter.hasNext()) {
+                        var numCursor = iter.next();
+                        assertEquals(values.get(i), numCursor.readUint());
+                        i += 1;
+                    }
+                    assertEquals(evenListCursor.count() + oddListCursor.count(), i);
+                }
+
+                // there are no extra items
+                assertEquals(null, cursor.readPath(new Database.PathPart[]{
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("combo".getBytes()))),
+                    new Database.LinkedArrayListGet(values.size())
+                }));
+            })
+        });
+    }
+
     void testLowLevelApi(Core core, Hasher hasher) throws Exception {
         // open and re-open database
         {
@@ -1173,6 +1274,12 @@ class DatabaseTest {
             testSlice(core, hasher, 2, 0, 2);
             testSlice(core, hasher, 2, 1, 1);
             testSlice(core, hasher, 1, 0, 0);
+
+            // concat linked_array_list
+            testConcat(core, hasher, Database.SLOT_COUNT * 5 + 1, Database.SLOT_COUNT + 1);
+            testConcat(core, hasher, Database.SLOT_COUNT, Database.SLOT_COUNT);
+            testConcat(core, hasher, 1, 1);
+            testConcat(core, hasher, 0, 0);
         }
     }
 }
