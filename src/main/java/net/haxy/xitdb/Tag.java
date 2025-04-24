@@ -14,7 +14,6 @@ public enum Tag {
     FLOAT;
 
     public static Tag valueOf(int n) {
-        if (n > Tag.values().length) throw new IllegalArgumentException();
         return Tag.values()[n];
     }
 }
