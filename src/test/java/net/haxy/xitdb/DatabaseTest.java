@@ -1281,5 +1281,121 @@ class DatabaseTest {
             testConcat(core, hasher, 1, 1);
             testConcat(core, hasher, 0, 0);
         }
+
+        // concat linked_array_list multiple times
+        {
+            core.setLength(0);
+            var db = new Database(core, hasher);
+            var rootCursor = db.rootCursor();
+
+            rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListAppend(),
+                new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                new Database.HashMapInit(),
+                new Database.Context((cursor) -> {
+                    var values = new ArrayList<Long>();
+
+                    // create list
+                    for (int i = 0; i < Database.SLOT_COUNT + 1; i++) {
+                        long n = i * 2;
+                        values.add(n);
+                        cursor.writePath(new Database.PathPart[]{
+                            new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes()))),
+                            new Database.LinkedArrayListInit(),
+                            new Database.LinkedArrayListAppend(),
+                            new Database.WriteData(new Database.Uint(n))
+                        });
+                    }
+
+                    // get list slot
+                    var evenListCursor = cursor.readPath(new Database.PathPart[]{
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes())))
+                    });
+                    assertEquals(Database.SLOT_COUNT + 1, evenListCursor.count());
+
+                    // check all values in the new slice with an iterator
+                    {
+                        var innerCursor = cursor.readPath(new Database.PathPart[]{
+                            new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes())))
+                        });
+                        var iter = innerCursor.iterator();
+                        int i = 0;
+                        while (iter.hasNext()) {
+                            iter.next();
+                            i += 1;
+                        }
+                        assertEquals(Database.SLOT_COUNT + 1, i);
+                    }
+
+                    // concat the list with itself multiple times.
+                    // since each list has 17 items, each concat
+                    // will create a gap, causing a root overflow
+                    // before a normal array list would've.
+                    var comboListCursor = cursor.writePath(new Database.PathPart[]{
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("combo".getBytes()))),
+                        new Database.WriteData(evenListCursor.slotPtr.slot()),
+                        new Database.LinkedArrayListInit()
+                    });
+                    for (int i = 0; i < 16; i++) {
+                        comboListCursor = comboListCursor.writePath(new Database.PathPart[]{
+                            new Database.LinkedArrayListConcat(evenListCursor.slotPtr.slot())
+                        });
+                    }
+
+                    // append to the new list
+                    cursor.writePath(new Database.PathPart[]{
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("combo".getBytes()))),
+                        new Database.LinkedArrayListAppend(),
+                        new Database.WriteData(new Database.Uint(3))
+                    });
+
+                    // read the new value from the list
+                    assertEquals(3, cursor.readPath(new Database.PathPart[]{
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("combo".getBytes()))),
+                        new Database.LinkedArrayListGet(-1)
+                    }).slotPtr.slot().value());
+
+                    // append more to the new list
+                    for (int i = 0; i < 500; i++) {
+                        cursor.writePath(new Database.PathPart[]{
+                            new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("combo".getBytes()))),
+                            new Database.LinkedArrayListAppend(),
+                            new Database.WriteData(new Database.Uint(1))
+                        });
+                    }
+                })
+            });
+        }
+
+        // append items to linked_array_list without setting their value
+        {
+            core.setLength(0);
+            var db = new Database(core, hasher);
+            var rootCursor = db.rootCursor();
+
+            // appending without setting any value should work
+            for (int i = 0; i < 8; i++) {
+                rootCursor.writePath(new Database.PathPart[]{
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                    new Database.LinkedArrayListInit(),
+                    new Database.LinkedArrayListAppend()
+                });
+            }
+
+            // explicitly writing a null slot should also work
+            for (int i = 0; i < 8; i++) {
+                rootCursor.writePath(new Database.PathPart[]{
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                    new Database.LinkedArrayListInit(),
+                    new Database.LinkedArrayListAppend(),
+                    new Database.WriteData(null)
+                });
+            }
+        }
     }
 }
