@@ -95,6 +95,40 @@ class DatabaseTest {
                     new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-slice".getBytes()))),
                     new Database.LinkedArrayListGet(sliceSize)
                 }));
+
+                // concat the slice with itself
+                cursor.writePath(new Database.PathPart[]{
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("combo".getBytes()))),
+                    new Database.WriteData(evenListSliceCursor.slotPtr.slot()),
+                    new Database.LinkedArrayListInit(),
+                    new Database.LinkedArrayListConcat(evenListSliceCursor.slotPtr.slot())
+                });
+
+                // check all values in the combo list
+                var comboValues = new ArrayList<Long>();
+                comboValues.addAll(values.subList((int) sliceOffset, (int) (sliceOffset + sliceSize)));
+                comboValues.addAll(values.subList((int) sliceOffset, (int) (sliceOffset + sliceSize)));
+                for (int i = 0; i < comboValues.size(); i++) {
+                    var n = cursor.readPath(new Database.PathPart[]{
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("combo".getBytes()))),
+                        new Database.LinkedArrayListGet(i)
+                    }).slotPtr.slot().value();
+                    assertEquals(comboValues.get(i), n);
+                }
+
+                // append to the slice
+                cursor.writePath(new Database.PathPart[]{
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-slice".getBytes()))),
+                    new Database.LinkedArrayListInit(),
+                    new Database.LinkedArrayListAppend(),
+                    new Database.WriteData(new Database.Uint(3))
+                });
+
+                // read the new value from the slice
+                assertEquals(3, cursor.readPath(new Database.PathPart[]{
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-slice".getBytes()))),
+                    new Database.LinkedArrayListGet(-1)
+                }).slotPtr.slot().value());
             })
         });
     }
