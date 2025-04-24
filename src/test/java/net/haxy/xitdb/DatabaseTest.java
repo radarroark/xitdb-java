@@ -15,6 +15,24 @@ class DatabaseTest {
     static long MAX_READ_BYTES = 1024;
 
     @Test
+    void testHightLevelApi() throws Exception {
+        try (var ram = new RandomAccessMemory()) {
+            var core = new CoreMemory(ram);
+            var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
+            testHighLevelApi(core, hasher);
+        }
+
+        var file = File.createTempFile("database", "");
+        file.deleteOnExit();
+
+        try (var raf = new RandomAccessFile(file, "rw")) {
+            var core = new CoreFile(raf);
+            var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
+            testHighLevelApi(core, hasher);
+        }
+    }
+
+    @Test
     void testLowLevelApi() throws Exception {
         try (var ram = new RandomAccessMemory()) {
             var core = new CoreMemory(ram);
@@ -29,6 +47,26 @@ class DatabaseTest {
             var core = new CoreFile(raf);
             var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
             testLowLevelApi(core, hasher);
+        }
+    }
+
+    void testHighLevelApi(Core core, Hasher hasher) throws Exception {
+        // init the db
+        var db = new Database(core, hasher);
+
+        {
+            // to get the benefits of immutability, the top-level data structure
+            // must be an ArrayList, so each transaction is stored as an item in it
+            var history = new WriteArrayList(db.rootCursor());
+
+            // this is how a transaction is executed. we call history.appendContext,
+            // providing it with the most recent copy of the db and a context
+            // object. the context object has a method that will run before the
+            // transaction has completed. this method is where we can write
+            // changes to the db. if any error happens in it, the transaction
+            // will not complete and the db will be unaffected.
+            history.appendContext(history.getSlot(-1), (cursor) -> {
+            });
         }
     }
 
