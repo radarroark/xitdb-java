@@ -111,7 +111,7 @@ class DatabaseTest {
             assertEquals(Tag.SHORT_BYTES, moment.getSlot("bar").tag());
 
             // to get the "fruits" list, we get the cursor to it and
-            // then pass it to the ArrayList.init method
+            // then pass it to the ArrayList constructor
             var fruitsCursor = moment.getCursor("fruits");
             var fruits = new ReadArrayList(fruitsCursor);
             assertEquals(3, fruits.count());
