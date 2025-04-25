@@ -21,7 +21,7 @@ class DatabaseTest {
         try (var ram = new RandomAccessMemory()) {
             var core = new CoreMemory(ram);
             var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
-            testHighLevelApi(core, hasher);
+            testHighLevelApi(core, hasher, null);
         }
 
         var file = File.createTempFile("database", "");
@@ -30,7 +30,7 @@ class DatabaseTest {
         try (var raf = new RandomAccessFile(file, "rw")) {
             var core = new CoreFile(raf);
             var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
-            testHighLevelApi(core, hasher);
+            testHighLevelApi(core, hasher, file);
         }
     }
 
@@ -52,7 +52,7 @@ class DatabaseTest {
         }
     }
 
-    void testHighLevelApi(Core core, Hasher hasher) throws Exception {
+    void testHighLevelApi(Core core, Hasher hasher, File fileMaybe) throws Exception {
         // init the db
         var db = new Database(core, hasher);
 
@@ -306,6 +306,31 @@ class DatabaseTest {
             var todoCursor = todos.getCursor(0);
             var todoValue = todoCursor.readBytes(MAX_READ_BYTES);
             assertEquals("Pay the bills", new String(todoValue));
+        }
+
+        // the db size remains the same after writing junk data
+        // and then reinitializing the db. this is useful because
+        // there could be data from a transaction that never
+        // completed due to an unclean shutdown.
+        {
+            core.seek(core.length());
+            var sizeBefore = core.length();
+
+            var writer = core.writer();
+            writer.write("this is junk data that will be deleted during init".getBytes());
+
+            // no error is thrown if db file is opened in read-only mode
+            if (fileMaybe != null) {
+                try (var raf = new RandomAccessFile(fileMaybe, "r")) {
+                    new Database(new CoreFile(raf), hasher);
+                }
+            }
+
+            db = new Database(core, hasher);
+
+            var sizeAfter = core.length();
+
+            assertEquals(sizeBefore, sizeAfter);
         }
     }
 
