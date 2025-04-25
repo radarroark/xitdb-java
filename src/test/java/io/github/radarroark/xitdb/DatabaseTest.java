@@ -69,7 +69,41 @@ class DatabaseTest {
                 var moment = new WriteHashMap(cursor);
 
                 moment.put("foo", new Database.Bytes("foo"));
+                moment.put("bar", new Database.Bytes("bar"));
+
+                var fruitsCursor = moment.putCursor("fruits");
+                var fruits = new WriteArrayList(fruitsCursor);
+                fruits.append(new Database.Bytes("apple"));
+                fruits.append(new Database.Bytes("pear"));
+                fruits.append(new Database.Bytes("grape"));
+
+                var peopleCursor = moment.putCursor("people");
+                var people = new WriteArrayList(peopleCursor);
+
+                var aliceCursor = people.appendCursor();
+                var alice = new WriteHashMap(aliceCursor);
+                alice.put("name", new Database.Bytes("Alice"));
+                alice.put("age", new Database.Uint(25));
+
+                var bobCursor = people.appendCursor();
+                var bob = new WriteHashMap(bobCursor);
+                bob.put("name", new Database.Bytes("Bob"));
+                bob.put("age", new Database.Uint(42));
             });
+
+            // get the most recent copy of the database, like a moment
+            // in time. the -1 index will return the last index in the list.
+            var momentCursor = history.getCursor(-1);
+            var moment = new ReadHashMap(momentCursor);
+
+            // we can read the value of "foo" from the map by getting
+            // the cursor to "foo" and then calling readBytes on it
+            var fooCursor = moment.getCursor("foo");
+            var fooValue = fooCursor.readBytes(MAX_READ_BYTES);
+            assertEquals("foo", new String(fooValue));
+
+            assertEquals(Tag.SHORT_BYTES, moment.getSlot("foo").tag());
+            assertEquals(Tag.SHORT_BYTES, moment.getSlot("bar").tag());
         }
     }
 
