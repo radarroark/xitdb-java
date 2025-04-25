@@ -12,6 +12,7 @@ public class WriteArrayList extends ReadArrayList {
         });
     }
 
+    @Override
     public WriteCursor.Iterator iterator() throws IOException {
         return this.cursor.iterator();
     }

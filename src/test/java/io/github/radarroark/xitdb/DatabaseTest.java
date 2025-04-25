@@ -66,6 +66,7 @@ class DatabaseTest {
             // changes to the db. if any error happens in it, the transaction
             // will not complete and the db will be unaffected.
             history.appendContext(history.getSlot(-1), (cursor) -> {
+                var moment = new WriteHashMap(cursor);
             });
         }
     }
