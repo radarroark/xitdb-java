@@ -287,8 +287,8 @@ public class ReadCursor {
         ReadCursor cursor;
         long size;
         long index;
-        Stack<Level> stack;
-        ReadCursor nextCursorMaybe = null; // only used when iterating over hash maps
+        private Stack<Level> stack;
+        private ReadCursor nextCursorMaybe = null; // only used when iterating over hash maps
 
         public static class Level {
             long position;

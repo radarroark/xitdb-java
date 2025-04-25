@@ -89,6 +89,11 @@ class DatabaseTest {
                 var bob = new WriteHashMap(bobCursor);
                 bob.put("name", new Database.Bytes("Bob"));
                 bob.put("age", new Database.Uint(42));
+
+                var todosCursor = moment.putCursor("todos");
+                var todos = new WriteLinkedArrayList(todosCursor);
+                todos.append(new Database.Bytes("Pay the bills"));
+                todos.append(new Database.Bytes("Get an oil change"));
             });
 
             // get the most recent copy of the database, like a moment
@@ -104,6 +109,45 @@ class DatabaseTest {
 
             assertEquals(Tag.SHORT_BYTES, moment.getSlot("foo").tag());
             assertEquals(Tag.SHORT_BYTES, moment.getSlot("bar").tag());
+
+            // to get the "fruits" list, we get the cursor to it and
+            // then pass it to the ArrayList.init method
+            var fruitsCursor = moment.getCursor("fruits");
+            var fruits = new ReadArrayList(fruitsCursor);
+            assertEquals(3, fruits.count());
+
+            // now we can get the first item from the fruits list and read it
+            var appleCursor = fruits.getCursor(0);
+            var appleValue = appleCursor.readBytes(MAX_READ_BYTES);
+            assertEquals("apple", new String(appleValue));
+
+            var peopleCursor = moment.getCursor("people");
+            var people = new ReadArrayList(peopleCursor);
+            assertEquals(2, people.count());
+
+            var aliceCursor = people.getCursor(0);
+            var alice = new ReadHashMap(aliceCursor);
+            var aliceAgeCursor = alice.getCursor("age");
+            assertEquals(25, aliceAgeCursor.readUint());
+
+            var todosCursor = moment.getCursor("todos");
+            var todos = new ReadLinkedArrayList(todosCursor);
+            assertEquals(2, todos.count());
+
+            var todoCursor = todos.getCursor(0);
+            var todoValue = todoCursor.readBytes(MAX_READ_BYTES);
+            assertEquals("Pay the bills", new String(todoValue));
+
+            var peopleIter = people.iterator();
+            while (peopleIter.hasNext()) {
+                var personCursor = peopleIter.next();
+                var person = new ReadHashMap(personCursor);
+                var personIter = person.iterator();
+                while (personIter.hasNext()) {
+                    var kvPairCursor = personIter.next();
+                    kvPairCursor.readKeyValuePair();
+                }
+            }
         }
     }
 
