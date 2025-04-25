@@ -36,7 +36,7 @@ public class WriteCursor extends ReadCursor {
     }
 
     @Override
-    public KeyValuePairCursor readKeyValuePair() throws IOException, Database.UnexpectedTagException {
+    public KeyValuePairCursor readKeyValuePair() throws IOException {
         var kvPairCursor = super.readKeyValuePair();
         return new KeyValuePairCursor(
             new WriteCursor(kvPairCursor.valueCursor.slotPtr, this.db),

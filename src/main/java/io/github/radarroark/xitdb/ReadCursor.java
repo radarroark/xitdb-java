@@ -40,21 +40,21 @@ public class ReadCursor {
         }
     }
 
-    public long readUint() throws Database.UnexpectedTagException {
+    public long readUint() {
         if (this.slotPtr.slot().tag() != Tag.UINT) {
             throw new Database.UnexpectedTagException();
         }
         return this.slotPtr.slot().value();
     }
 
-    public long readInt() throws Database.UnexpectedTagException {
+    public long readInt() {
         if (this.slotPtr.slot().tag() != Tag.INT) {
             throw new Database.UnexpectedTagException();
         }
         return this.slotPtr.slot().value();
     }
 
-    public double readFloat() throws Database.UnexpectedTagException {
+    public double readFloat() {
         if (this.slotPtr.slot().tag() != Tag.FLOAT) {
             throw new Database.UnexpectedTagException();
         }
@@ -116,7 +116,7 @@ public class ReadCursor {
         }
     }
 
-    public KeyValuePairCursor readKeyValuePair() throws IOException, Database.UnexpectedTagException {
+    public KeyValuePairCursor readKeyValuePair() throws IOException {
         var reader = this.db.core.reader();
 
         if (this.slotPtr.slot().tag() != Tag.KV_PAIR) {
@@ -274,7 +274,7 @@ public class ReadCursor {
             return buffer.getLong();
         }
 
-        public void seek(long position) throws Database.InvalidOffsetException {
+        public void seek(long position) {
             if (position > this.size) {
                 throw new Database.InvalidOffsetException();
             }

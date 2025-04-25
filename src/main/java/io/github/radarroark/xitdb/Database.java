@@ -310,7 +310,7 @@ public class Database {
         } catch (IOException e) {}
     }
 
-    private byte[] checkHash(byte[] hash) throws InvalidHashSizeException {
+    private byte[] checkHash(byte[] hash) {
         if (hash.length != this.header.hashSize()) {
             throw new InvalidHashSizeException();
         }
