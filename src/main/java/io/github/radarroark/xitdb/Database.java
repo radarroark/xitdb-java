@@ -186,6 +186,10 @@ public class Database {
     public static record Int(long value) implements WriteableData {}
     public static record Float(double value) implements WriteableData {}
     public static record Bytes(byte[] value) implements WriteableData {
+        public Bytes(String value) {
+            this(value.getBytes());
+        }
+
         public boolean isShort() {
             if (this.value.length > 8) return false;
             for (byte b : this.value) {

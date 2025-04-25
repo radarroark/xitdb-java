@@ -67,6 +67,8 @@ class DatabaseTest {
             // will not complete and the db will be unaffected.
             history.appendContext(history.getSlot(-1), (cursor) -> {
                 var moment = new WriteHashMap(cursor);
+
+                moment.put("foo", new Database.Bytes("foo"));
             });
         }
     }
@@ -432,7 +434,7 @@ class DatabaseTest {
                     new Database.HashMapInit(),
                     new Database.HashMapGet(new Database.HashMapGetValue(barKey))
                 });
-                barCursor.write(new Database.Bytes("longstring".getBytes()));
+                barCursor.write(new Database.Bytes("longstring"));
 
                 // the slot tag is BYTES because the byte array is > 8 bytes long
                 assertEquals(Tag.BYTES, barCursor.slot().tag());
@@ -446,7 +448,7 @@ class DatabaseTest {
                         new Database.HashMapInit(),
                         new Database.HashMapGet(new Database.HashMapGetValue(barKey))
                     });
-                    nextBarCursor.writeIfEmpty(new Database.Bytes("longstring".getBytes()));
+                    nextBarCursor.writeIfEmpty(new Database.Bytes("longstring"));
                     assertEquals(barCursor.slot().value(), nextBarCursor.slot().value());
                 }
 
@@ -459,7 +461,7 @@ class DatabaseTest {
                         new Database.HashMapInit(),
                         new Database.HashMapGet(new Database.HashMapGetValue(barKey))
                     });
-                    nextBarCursor.write(new Database.Bytes("longstring".getBytes()));
+                    nextBarCursor.write(new Database.Bytes("longstring"));
                     assertNotEquals(barCursor.slot().value(), nextBarCursor.slot().value());
                 }
             }
@@ -483,7 +485,7 @@ class DatabaseTest {
                     new Database.HashMapInit(),
                     new Database.HashMapGet(new Database.HashMapGetValue(barKey))
                 });
-                barCursor.write(new Database.Bytes("shortstr".getBytes()));
+                barCursor.write(new Database.Bytes("shortstr"));
 
                 // the slot tag is SHORT_BYTES because the byte array is <= 8 bytes long
                 assertEquals(Tag.SHORT_BYTES, barCursor.slot().tag());
@@ -546,7 +548,7 @@ class DatabaseTest {
                 new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                 new Database.HashMapInit(),
                 new Database.HashMapGet(new Database.HashMapGetValue(barKey)),
-                new Database.WriteData(new Database.Bytes("bar".getBytes()))
+                new Database.WriteData(new Database.Bytes("bar"))
             }).slot();
 
             // overwrite foo -> bar using the bar pointer
@@ -590,7 +592,7 @@ class DatabaseTest {
                 new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                 new Database.HashMapInit(),
                 new Database.HashMapGet(new Database.HashMapGetValue(smallConflictKey)),
-                new Database.WriteData(new Database.Bytes("small".getBytes()))
+                new Database.WriteData(new Database.Bytes("small"))
             });
 
             // write key that conflicts with foo the first four bytes
@@ -605,7 +607,7 @@ class DatabaseTest {
                 new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                 new Database.HashMapInit(),
                 new Database.HashMapGet(new Database.HashMapGetValue(conflictKey)),
-                new Database.WriteData(new Database.Bytes("hello".getBytes()))
+                new Database.WriteData(new Database.Bytes("hello"))
             });
 
             // read conflicting key
@@ -631,7 +633,7 @@ class DatabaseTest {
                 new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                 new Database.HashMapInit(),
                 new Database.HashMapGet(new Database.HashMapGetValue(conflictKey)),
-                new Database.WriteData(new Database.Bytes("goodbye".getBytes()))
+                new Database.WriteData(new Database.Bytes("goodbye"))
             });
             var goodbyeCursor = rootCursor.readPath(new Database.PathPart[]{
                 new Database.ArrayListGet(-1),
@@ -849,7 +851,7 @@ class DatabaseTest {
                     new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
                     new Database.ArrayListInit(),
                     new Database.ArrayListAppend(),
-                    new Database.WriteData(new Database.Bytes("apple".getBytes()))
+                    new Database.WriteData(new Database.Bytes("apple"))
                 });
 
                 // read apple
@@ -870,7 +872,7 @@ class DatabaseTest {
                     new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
                     new Database.ArrayListInit(),
                     new Database.ArrayListAppend(),
-                    new Database.WriteData(new Database.Bytes("banana".getBytes()))
+                    new Database.WriteData(new Database.Bytes("banana"))
                 });
 
                 // read banana
@@ -898,7 +900,7 @@ class DatabaseTest {
                     new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
                     new Database.ArrayListInit(),
                     new Database.ArrayListAppend(),
-                    new Database.WriteData(new Database.Bytes("pear".getBytes()))
+                    new Database.WriteData(new Database.Bytes("pear"))
                 });
 
                 // write grape
@@ -910,7 +912,7 @@ class DatabaseTest {
                     new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
                     new Database.ArrayListInit(),
                     new Database.ArrayListAppend(),
-                    new Database.WriteData(new Database.Bytes("grape".getBytes()))
+                    new Database.WriteData(new Database.Bytes("grape"))
                 });
 
                 // read pear
@@ -948,7 +950,7 @@ class DatabaseTest {
                     new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                     new Database.HashMapInit(),
                     new Database.HashMapGet(new Database.HashMapGetValue(watKey)),
-                    new Database.WriteData(new Database.Bytes(value.getBytes()))
+                    new Database.WriteData(new Database.Bytes(value))
                 });
             }
 
@@ -981,7 +983,7 @@ class DatabaseTest {
                         new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                         new Database.HashMapInit(),
                         new Database.HashMapGet(new Database.HashMapGetValue(watKey)),
-                        new Database.WriteData(new Database.Bytes(value.getBytes())),
+                        new Database.WriteData(new Database.Bytes(value)),
                         new Database.Context((cursor) -> {
                             if (index == 32) {
                                 throw new Exception();
@@ -999,7 +1001,7 @@ class DatabaseTest {
                 new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                 new Database.HashMapInit(),
                 new Database.HashMapGet(new Database.HashMapGetValue(watKey)),
-                new Database.WriteData(new Database.Bytes("wat32".getBytes()))
+                new Database.WriteData(new Database.Bytes("wat32"))
             });
 
             // slice so it contains exactly SLOT_COUNT,
@@ -1040,7 +1042,7 @@ class DatabaseTest {
                     new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                     new Database.ArrayListInit(),
                     new Database.ArrayListAppend(),
-                    new Database.WriteData(new Database.Bytes(value.getBytes()))
+                    new Database.WriteData(new Database.Bytes(value))
                 });
             }
 
@@ -1087,7 +1089,7 @@ class DatabaseTest {
                 new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                 new Database.ArrayListInit(),
                 new Database.ArrayListGet(-1),
-                new Database.WriteData(new Database.Bytes("hello".getBytes()))
+                new Database.WriteData(new Database.Bytes("hello"))
             });
 
             // read last value
@@ -1107,7 +1109,7 @@ class DatabaseTest {
                 new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                 new Database.ArrayListInit(),
                 new Database.ArrayListGet(-1),
-                new Database.WriteData(new Database.Bytes("goodbye".getBytes()))
+                new Database.WriteData(new Database.Bytes("goodbye"))
             });
 
             // read last value
@@ -1146,7 +1148,7 @@ class DatabaseTest {
                     new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                     new Database.ArrayListInit(),
                     new Database.ArrayListAppend(),
-                    new Database.WriteData(new Database.Bytes(value.getBytes()))
+                    new Database.WriteData(new Database.Bytes(value))
                 });
 
                 var cursor = rootCursor.readPath(new Database.PathPart[]{
@@ -1220,7 +1222,7 @@ class DatabaseTest {
                     new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                     new Database.HashMapInit(),
                     new Database.HashMapGet(new Database.HashMapGetValue(watKey)),
-                    new Database.WriteData(new Database.Bytes(value.getBytes()))
+                    new Database.WriteData(new Database.Bytes(value))
                 });
 
                 var cursor = rootCursor.readPath(new Database.PathPart[]{
@@ -1239,7 +1241,7 @@ class DatabaseTest {
                 new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                 new Database.HashMapInit(),
                 new Database.HashMapGet(new Database.HashMapGetKey(fooKey)),
-                new Database.WriteData(new Database.Bytes("foo".getBytes()))
+                new Database.WriteData(new Database.Bytes("foo"))
             });
             rootCursor.writePath(new Database.PathPart[]{
                 new Database.ArrayListInit(),
@@ -1295,7 +1297,7 @@ class DatabaseTest {
                     var kvPairCursor = iter.next();
                     var kvPair = kvPairCursor.readKeyValuePair();
                     if (Arrays.equals(kvPair.hash, fooKey)) {
-                        kvPair.keyCursor.write(new Database.Bytes("bar".getBytes()));
+                        kvPair.keyCursor.write(new Database.Bytes("bar"));
                     }
                     i += 1;
                 }
