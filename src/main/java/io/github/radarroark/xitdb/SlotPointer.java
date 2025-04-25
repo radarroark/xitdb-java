@@ -1,4 +1,4 @@
-package net.haxy.xitdb;
+package io.github.radarroark.xitdb;
 
 public record SlotPointer(Long position, Slot slot) {
     public SlotPointer withSlot(Slot slot) {

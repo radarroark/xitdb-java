@@ -2,8 +2,8 @@ plugins {
     id("java")
 }
 
-group = "net.haxy"
-version = "1.0-SNAPSHOT"
+group = "io.github.radarroark"
+version = "0.1.0-SNAPSHOT"
 
 repositories {
     mavenCentral()

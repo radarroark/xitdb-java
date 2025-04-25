@@ -1,4 +1,4 @@
-package net.haxy.xitdb;
+package io.github.radarroark.xitdb;
 
 public enum Tag {
     NONE,

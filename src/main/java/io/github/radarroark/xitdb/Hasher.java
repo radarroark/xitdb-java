@@ -1,4 +1,4 @@
-package net.haxy.xitdb;
+package io.github.radarroark.xitdb;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;

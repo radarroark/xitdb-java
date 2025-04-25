@@ -1,4 +1,4 @@
-package net.haxy.xitdb;
+package io.github.radarroark.xitdb;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInput;
