@@ -22,7 +22,7 @@ public class ReadHashMap {
         return this.cursor.iterator();
     }
 
-    // getters that take a string key and hash it for you
+    // methods that take a string key and hash it for you
 
     public ReadCursor getCursor(String key) throws Exception {
         return getCursor(this.cursor.db.md.digest(key.getBytes()));
@@ -44,7 +44,7 @@ public class ReadHashMap {
         return getKeyValuePair(this.cursor.db.md.digest(key.getBytes()));
     }
 
-    // getters that take a hash directly
+    // methods that take a hash directly
 
     public ReadCursor getCursor(byte[] hash) throws Exception {
         return this.cursor.readPath(new Database.PathPart[]{
