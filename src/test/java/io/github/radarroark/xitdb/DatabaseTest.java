@@ -52,6 +52,50 @@ class DatabaseTest {
         }
     }
 
+    @Test
+    void notUsingArrayListAtTopLevel() throws Exception {
+        // normally an arraylist makes the most sense at the top level,
+        // but this test just ensures we can use other data structures
+        // at the top level. in theory a top-level hash map might make
+        // sense if we're using xitdb as a format to send data over a
+        // network. in that case, immutability isn't important because
+        // the data is just created and immediately sent over the wire.
+
+        // hash map
+        try (var ram = new RandomAccessMemory()) {
+            var core = new CoreMemory(ram);
+            var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
+            var db = new Database(core, hasher);
+
+            var map = new WriteHashMap(db.rootCursor());
+            map.put("foo", new Database.Bytes("foo"));
+            map.put("bar", new Database.Bytes("bar"));
+
+            // init inner map
+            {
+                var innerMapCursor = map.putCursor("inner-map");
+                new WriteHashMap(innerMapCursor);
+            }
+
+            // re-init inner map
+            // since the top-level type isn't an arraylist, there is no concept of
+            // a transaction, so this does not perform a copy of the root node
+            {
+                var innerMapCursor = map.putCursor("inner-map");
+                new WriteHashMap(innerMapCursor);
+            }
+        }
+
+        // linked array list is not currently allowed at the top level
+        try (var ram = new RandomAccessMemory()) {
+            var core = new CoreMemory(ram);
+            var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
+            var db = new Database(core, hasher);
+
+            assertThrows(Database.InvalidTopLevelTypeException.class, () -> new WriteLinkedArrayList(db.rootCursor()));
+        }
+    }
+
     void testHighLevelApi(Core core, Hasher hasher, File fileMaybe) throws Exception {
         // init the db
         var db = new Database(core, hasher);
