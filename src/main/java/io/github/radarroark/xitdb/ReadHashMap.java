@@ -14,10 +14,6 @@ public class ReadHashMap {
         }
     }
 
-    public long count() throws IOException {
-        return this.cursor.count();
-    }
-
     public ReadCursor.Iterator iterator() throws IOException {
         return this.cursor.iterator();
     }
