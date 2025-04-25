@@ -1,8 +1,8 @@
 package io.github.radarroark.xitdb;
 
-import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.File;
 import java.io.RandomAccessFile;
@@ -10,6 +10,8 @@ import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
+
+import org.junit.jupiter.api.Test;
 
 class DatabaseTest {
     static long MAX_READ_BYTES = 1024;
@@ -148,6 +150,162 @@ class DatabaseTest {
                     kvPairCursor.readKeyValuePair();
                 }
             }
+        }
+
+        // make a new transaction and change the data
+        {
+            var history = new WriteArrayList(db.rootCursor());
+
+            history.appendContext(history.getSlot(-1), (cursor) -> {
+                var moment = new WriteHashMap(cursor);
+
+                assert(moment.remove("bar"));
+                assert(!moment.remove("doesn't exist"));
+
+                // this associates the hash of "fruits" with the actual string.
+                // hash maps use hashes directly as keys so they are not able
+                // to get the original bytes of the key unless we store it
+                // explicitly this way.
+                moment.putKey("fruits", new Database.Bytes("fruits"));
+
+                var fruitsCursor = moment.putCursor("fruits");
+                var fruits = new WriteArrayList(fruitsCursor);
+                fruits.put(0, new Database.Bytes("lemon"));
+                fruits.slice(2);
+
+                var peopleCursor = moment.putCursor("people");
+                var people = new WriteArrayList(peopleCursor);
+
+                var aliceCursor = people.putCursor(0);
+                var alice = new WriteHashMap(aliceCursor);
+                alice.put("age", new Database.Uint(26));
+
+                var todosCursor = moment.putCursor("todos");
+                var todos = new WriteLinkedArrayList(todosCursor);
+                todos.concat(todosCursor.slot());
+                todos.slice(1, 1);
+            });
+
+            var momentCursor = history.getCursor(-1);
+            var moment = new ReadHashMap(momentCursor);
+
+            assertEquals(null, moment.getCursor("bar"));
+
+            var fruitsKeyCursor = moment.getKeyCursor("fruits");
+            var fruitsKeyValue = fruitsKeyCursor.readBytes(MAX_READ_BYTES);
+            assertEquals("fruits", new String(fruitsKeyValue));
+
+            var fruitsCursor = moment.getCursor("fruits");
+            var fruits = new ReadArrayList(fruitsCursor);
+            assertEquals(2, fruits.count());
+
+            // you can get both the key and value cursor this way
+            var fruitsKVCursor = moment.getKeyValuePair("fruits");
+            assertEquals(Tag.SHORT_BYTES, fruitsKVCursor.keyCursor.slotPtr.slot().tag());
+            assertEquals(Tag.ARRAY_LIST, fruitsKVCursor.valueCursor.slotPtr.slot().tag());
+
+            var lemonCursor = fruits.getCursor(0);
+            var lemonValue = lemonCursor.readBytes(MAX_READ_BYTES);
+            assertEquals("lemon", new String(lemonValue));
+
+            var peopleCursor = moment.getCursor("people");
+            var people = new ReadArrayList(peopleCursor);
+            assertEquals(2, people.count());
+
+            var aliceCursor = people.getCursor(0);
+            var alice = new ReadHashMap(aliceCursor);
+            var aliceAgeCursor = alice.getCursor("age");
+            assertEquals(26, aliceAgeCursor.readUint());
+
+            var todosCursor = moment.getCursor("todos");
+            var todos = new ReadLinkedArrayList(todosCursor);
+            assertEquals(1, todos.count());
+
+            var todoCursor = todos.getCursor(0);
+            var todoValue = todoCursor.readBytes(MAX_READ_BYTES);
+            assertEquals("Get an oil change", new String(todoValue));
+        }
+
+        // the old data hasn't changed
+        {
+            var history = new WriteArrayList(db.rootCursor());
+
+            var momentCursor = history.getCursor(0);
+            var moment = new ReadHashMap(momentCursor);
+
+            var fooCursor = moment.getCursor("foo");
+            var fooValue = fooCursor.readBytes(MAX_READ_BYTES);
+            assertEquals("foo", new String(fooValue));
+
+            assertEquals(Tag.SHORT_BYTES, moment.getSlot("foo").tag());
+            assertEquals(Tag.SHORT_BYTES, moment.getSlot("bar").tag());
+
+            var fruitsCursor = moment.getCursor("fruits");
+            var fruits = new ReadArrayList(fruitsCursor);
+            assertEquals(3, fruits.count());
+
+            var appleCursor = fruits.getCursor(0);
+            var appleValue = appleCursor.readBytes(MAX_READ_BYTES);
+            assertEquals("apple", new String(appleValue));
+
+            var peopleCursor = moment.getCursor("people");
+            var people = new ReadArrayList(peopleCursor);
+            assertEquals(2, people.count());
+
+            var aliceCursor = people.getCursor(0);
+            var alice = new ReadHashMap(aliceCursor);
+            var aliceAgeCursor = alice.getCursor("age");
+            assertEquals(25, aliceAgeCursor.readUint());
+
+            var todosCursor = moment.getCursor("todos");
+            var todos = new ReadLinkedArrayList(todosCursor);
+            assertEquals(2, todos.count());
+
+            var todoCursor = todos.getCursor(0);
+            var todoValue = todoCursor.readBytes(MAX_READ_BYTES);
+            assertEquals("Pay the bills", new String(todoValue));
+        }
+
+        // remove the last transaction with `slice`
+        {
+            var history = new WriteArrayList(db.rootCursor());
+
+            history.slice(1);
+
+            var momentCursor = history.getCursor(-1);
+            var moment = new ReadHashMap(momentCursor);
+
+            var fooCursor = moment.getCursor("foo");
+            var fooValue = fooCursor.readBytes(MAX_READ_BYTES);
+            assertEquals("foo", new String(fooValue));
+
+            assertEquals(Tag.SHORT_BYTES, moment.getSlot("foo").tag());
+            assertEquals(Tag.SHORT_BYTES, moment.getSlot("bar").tag());
+
+            var fruitsCursor = moment.getCursor("fruits");
+            var fruits = new ReadArrayList(fruitsCursor);
+            assertEquals(3, fruits.count());
+
+            var appleCursor = fruits.getCursor(0);
+            var appleValue = appleCursor.readBytes(MAX_READ_BYTES);
+            assertEquals("apple", new String(appleValue));
+
+            var peopleCursor = moment.getCursor("people");
+            var people = new ReadArrayList(peopleCursor);
+            assertEquals(2, people.count());
+
+            var aliceCursor = people.getCursor(0);
+            var alice = new ReadHashMap(aliceCursor);
+            var aliceAgeCursor = alice.getCursor("age");
+            assertEquals(25, aliceAgeCursor.readUint());
+
+            var todosCursor = moment.getCursor("todos");
+            var todos = new ReadLinkedArrayList(todosCursor);
+            assertEquals(2, todos.count());
+
+            var todoCursor = todos.getCursor(0);
+            var todoValue = todoCursor.readBytes(MAX_READ_BYTES);
+            assertEquals("Pay the bills", new String(todoValue));
         }
     }
 
