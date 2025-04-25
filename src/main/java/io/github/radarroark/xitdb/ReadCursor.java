@@ -44,6 +44,7 @@ public class ReadCursor {
         if (this.slotPtr.slot().tag() != Tag.UINT) {
             throw new Database.UnexpectedTagException();
         }
+        if (this.slotPtr.slot().value() < 0) throw new Database.ExpectedUnsignedLongException();
         return this.slotPtr.slot().value();
     }
 
