@@ -48,6 +48,8 @@ public class WriteArrayList extends ReadArrayList {
             new Database.WriteData(data),
             new Database.Context(fn)
         });
+        // flush all writes from the transaction to disk
+        this.cursor.db.core.sync();
     }
 
     public void slice(long size) throws Exception {

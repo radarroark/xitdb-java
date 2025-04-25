@@ -40,4 +40,8 @@ public class CoreMemory implements Core {
     public void setLength(long len) throws IOException {
         this.memory.setLength((int)len);
     }
+
+    @Override
+    public void sync() throws IOException {
+    }
 }

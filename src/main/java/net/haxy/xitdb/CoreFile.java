@@ -41,5 +41,9 @@ public class CoreFile implements Core {
     public void setLength(long len) throws IOException {
         this.file.setLength(len);
     }
-    
+
+    @Override
+    public void sync() throws IOException {
+        this.file.getFD().sync();
+    }
 }

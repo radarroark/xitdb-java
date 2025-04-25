@@ -16,4 +16,6 @@ public interface Core {
     public long position() throws IOException;
 
     public void setLength(long len) throws IOException;
+
+    public void sync() throws IOException;
 }
