@@ -96,6 +96,95 @@ class DatabaseTest {
         }
     }
 
+    @Test
+    void testReadDatabaseFromResources() throws Exception {
+        var resource = getClass().getClassLoader().getResource("test.db");
+        File file = new File(resource.toURI());
+        try (var raf = new RandomAccessFile(file, "r")) {
+            var core = new CoreFile(raf);
+            var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
+            var db = new Database(core, hasher);
+            var history = new ReadArrayList(db.rootCursor());
+
+            {
+                var momentCursor = history.getCursor(0);
+                var moment = new ReadHashMap(momentCursor);
+
+                var fooCursor = moment.getCursor("foo");
+                var fooValue = fooCursor.readBytes(MAX_READ_BYTES);
+                assertEquals("foo", new String(fooValue));
+
+                assertEquals(Tag.SHORT_BYTES, moment.getSlot("foo").tag());
+                assertEquals(Tag.SHORT_BYTES, moment.getSlot("bar").tag());
+
+                var fruitsCursor = moment.getCursor("fruits");
+                var fruits = new ReadArrayList(fruitsCursor);
+                assertEquals(3, fruits.count());
+
+                var appleCursor = fruits.getCursor(0);
+                var appleValue = appleCursor.readBytes(MAX_READ_BYTES);
+                assertEquals("apple", new String(appleValue));
+
+                var peopleCursor = moment.getCursor("people");
+                var people = new ReadArrayList(peopleCursor);
+                assertEquals(2, people.count());
+
+                var aliceCursor = people.getCursor(0);
+                var alice = new ReadHashMap(aliceCursor);
+                var aliceAgeCursor = alice.getCursor("age");
+                assertEquals(25, aliceAgeCursor.readUint());
+
+                var todosCursor = moment.getCursor("todos");
+                var todos = new ReadLinkedArrayList(todosCursor);
+                assertEquals(2, todos.count());
+
+                var todoCursor = todos.getCursor(0);
+                var todoValue = todoCursor.readBytes(MAX_READ_BYTES);
+                assertEquals("Pay the bills", new String(todoValue));
+            }
+
+            {
+                var momentCursor = history.getCursor(1);
+                var moment = new ReadHashMap(momentCursor);
+
+                assertEquals(null, moment.getCursor("bar"));
+
+                var fruitsKeyCursor = moment.getKeyCursor("fruits");
+                var fruitsKeyValue = fruitsKeyCursor.readBytes(MAX_READ_BYTES);
+                assertEquals("fruits", new String(fruitsKeyValue));
+
+                var fruitsCursor = moment.getCursor("fruits");
+                var fruits = new ReadArrayList(fruitsCursor);
+                assertEquals(2, fruits.count());
+
+                var fruitsKVCursor = moment.getKeyValuePair("fruits");
+                assertEquals(Tag.SHORT_BYTES, fruitsKVCursor.keyCursor.slotPtr.slot().tag());
+                assertEquals(Tag.ARRAY_LIST, fruitsKVCursor.valueCursor.slotPtr.slot().tag());
+
+                var lemonCursor = fruits.getCursor(0);
+                var lemonValue = lemonCursor.readBytes(MAX_READ_BYTES);
+                assertEquals("lemon", new String(lemonValue));
+
+                var peopleCursor = moment.getCursor("people");
+                var people = new ReadArrayList(peopleCursor);
+                assertEquals(2, people.count());
+
+                var aliceCursor = people.getCursor(0);
+                var alice = new ReadHashMap(aliceCursor);
+                var aliceAgeCursor = alice.getCursor("age");
+                assertEquals(26, aliceAgeCursor.readUint());
+
+                var todosCursor = moment.getCursor("todos");
+                var todos = new ReadLinkedArrayList(todosCursor);
+                assertEquals(1, todos.count());
+
+                var todoCursor = todos.getCursor(0);
+                var todoValue = todoCursor.readBytes(MAX_READ_BYTES);
+                assertEquals("Get an oil change", new String(todoValue));
+            }
+        }
+    }
+
     void testHighLevelApi(Core core, Hasher hasher, File fileMaybe) throws Exception {
         // init the db
         var db = new Database(core, hasher);
