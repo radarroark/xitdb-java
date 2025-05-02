@@ -295,12 +295,6 @@ class DatabaseTest {
                 assert(moment.remove("bar"));
                 assert(!moment.remove("doesn't exist"));
 
-                // this associates the hash of "fruits" with the actual string.
-                // hash maps use hashes directly as keys so they are not able
-                // to get the original bytes of the key unless we store it
-                // explicitly this way.
-                moment.putKey("fruits", new Database.Bytes("fruits"));
-
                 var fruitsCursor = moment.putCursor("fruits");
                 var fruits = new WriteArrayList(fruitsCursor);
                 fruits.put(0, new Database.Bytes("lemon"));

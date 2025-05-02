@@ -20,11 +20,17 @@ public class WriteHashMap extends ReadHashMap {
     // methods that take a string key and hash it for you
 
     public void put(String key, Database.WriteableData data) throws Exception {
-        put(this.cursor.db.md.digest(key.getBytes()), data);
+        var hash = this.cursor.db.md.digest(key.getBytes());
+        // this overload also stores the key
+        putKey(hash, new Database.Bytes(key));
+        put(hash, data);
     }
 
     public WriteCursor putCursor(String key) throws Exception {
-        return putCursor(this.cursor.db.md.digest(key.getBytes()));
+        var hash = this.cursor.db.md.digest(key.getBytes());
+        // this overload also stores the key
+        putKey(hash, new Database.Bytes(key));
+        return putCursor(hash);
     }
 
     public void putKey(String key, Database.WriteableData data) throws Exception {
