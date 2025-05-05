@@ -32,6 +32,9 @@ public class WriteCursor extends ReadCursor {
 
         public KeyValuePairCursor(WriteCursor valueCursor, WriteCursor keyCursor, byte[] hash) {
             super(valueCursor, keyCursor, hash);
+            this.valueCursor = valueCursor;
+            this.keyCursor = keyCursor;
+            this.hash = hash;
         }
     }
 
