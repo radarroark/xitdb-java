@@ -21,23 +21,23 @@ public class ReadHashMap {
     // methods that take a string key and hash it for you
 
     public ReadCursor getCursor(String key) throws Exception {
-        return getCursor(this.cursor.db.md.digest(key.getBytes()));
+        return getCursor(this.cursor.db.md.digest(key.getBytes("UTF-8")));
     }
 
     public Slot getSlot(String key) throws Exception {
-        return getSlot(this.cursor.db.md.digest(key.getBytes()));
+        return getSlot(this.cursor.db.md.digest(key.getBytes("UTF-8")));
     }
 
     public ReadCursor getKeyCursor(String key) throws Exception {
-        return getKeyCursor(this.cursor.db.md.digest(key.getBytes()));
+        return getKeyCursor(this.cursor.db.md.digest(key.getBytes("UTF-8")));
     }
 
     public Slot getKeySlot(String key) throws Exception {
-        return getKeySlot(this.cursor.db.md.digest(key.getBytes()));
+        return getKeySlot(this.cursor.db.md.digest(key.getBytes("UTF-8")));
     }
 
     public ReadCursor.KeyValuePairCursor getKeyValuePair(String key) throws Exception {
-        return getKeyValuePair(this.cursor.db.md.digest(key.getBytes()));
+        return getKeyValuePair(this.cursor.db.md.digest(key.getBytes("UTF-8")));
     }
 
     // methods that take a hash directly

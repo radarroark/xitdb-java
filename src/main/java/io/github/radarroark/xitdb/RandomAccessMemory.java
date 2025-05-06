@@ -112,17 +112,17 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
 
     @Override
     public void writeBytes(String s) throws IOException {
-        write(s.getBytes());
+        write(s.getBytes("UTF-8"));
     }
 
     @Override
     public void writeChars(String s) throws IOException {
-        write(s.getBytes());
+        write(s.getBytes("UTF-8"));
     }
 
     @Override
     public void writeUTF(String s) throws IOException {
-        write(s.getBytes());
+        write(s.getBytes("UTF-8"));
     }
 
     // DataInput

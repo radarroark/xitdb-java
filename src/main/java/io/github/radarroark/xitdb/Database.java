@@ -1,6 +1,7 @@
 package io.github.radarroark.xitdb;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
@@ -14,7 +15,7 @@ public class Database {
     public Long txStart;
 
     public static final short VERSION = 0;
-    public static final byte[] MAGIC_NUMBER = "xit".getBytes();
+    public static final byte[] MAGIC_NUMBER = new byte[]{'x', 'i', 't'};
     public static final int DATABASE_START = Header.length;
     public static final int BIT_COUNT = 4;
     public static final int SLOT_COUNT = 1 << BIT_COUNT;
@@ -186,8 +187,8 @@ public class Database {
     public static record Int(long value) implements WriteableData {}
     public static record Float(double value) implements WriteableData {}
     public static record Bytes(byte[] value) implements WriteableData {
-        public Bytes(String value) {
-            this(value.getBytes());
+        public Bytes(String value) throws UnsupportedEncodingException {
+            this(value.getBytes("UTF-8"));
         }
 
         public boolean isShort() {

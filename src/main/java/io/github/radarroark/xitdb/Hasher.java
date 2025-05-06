@@ -1,5 +1,6 @@
 package io.github.radarroark.xitdb;
 
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 
@@ -8,8 +9,8 @@ public record Hasher(MessageDigest md, int id) {
         this(md, 0);
     }
 
-    public static int stringToId(String hashIdName) {
-        var bytes = hashIdName.getBytes();
+    public static int stringToId(String hashIdName) throws UnsupportedEncodingException {
+        var bytes = hashIdName.getBytes("UTF-8");
         if (bytes.length != 4) {
             throw new IllegalArgumentException("Name must be exactly four bytes long");
         }
