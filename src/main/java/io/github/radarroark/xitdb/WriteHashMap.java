@@ -45,6 +45,22 @@ public class WriteHashMap extends ReadHashMap {
         return remove(this.cursor.db.md.digest(key.getBytes("UTF-8")));
     }
 
+    // methods that take a Database.Bytes key and hash it for you
+
+    public void put(Database.Bytes key, Database.WriteableData data) throws Exception {
+        var hash = this.cursor.db.md.digest(key.value());
+        // this overload also stores the key
+        putKey(hash, key);
+        put(hash, data);
+    }
+
+    public WriteCursor putCursor(Database.Bytes key) throws Exception {
+        var hash = this.cursor.db.md.digest(key.value());
+        // this overload also stores the key
+        putKey(hash, key);
+        return putCursor(hash);
+    }
+
     // methods that take a hash directly
 
     public void put(byte[] hash, Database.WriteableData data) throws Exception {

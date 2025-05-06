@@ -66,11 +66,15 @@ public class ReadCursor {
     }
 
     public byte[] readBytes(Long maxSizeMaybe) throws IOException {
+        return readBytesObject(maxSizeMaybe).value();
+    }
+
+    public Database.Bytes readBytesObject(Long maxSizeMaybe) throws IOException {
         var reader = this.db.core.reader();
 
         switch (this.slotPtr.slot().tag()) {
             case NONE -> {
-                return new byte[0];
+                return new Database.Bytes(new byte[0]);
             }
             case BYTES -> {
                 this.db.core.seek(this.slotPtr.slot().value());
@@ -80,18 +84,30 @@ public class ReadCursor {
                     throw new Database.StreamTooLongException();
                 }
 
+                var startPosition = this.db.core.position();
+
                 var value = new byte[(int)valueSize];
                 reader.readFully(value);
-                return value;
+
+                byte[] formatTag = null;
+                if (this.slotPtr.slot().full()) {
+                    this.db.core.seek(startPosition + valueSize);
+                    formatTag = new byte[2];
+                    reader.readFully(formatTag);
+                }
+
+                return new Database.Bytes(value, formatTag);
             }
             case SHORT_BYTES -> {
                 var buffer = ByteBuffer.allocate(8);
                 buffer.putLong(this.slotPtr.slot().value());
                 var bytes = buffer.array();
 
+                var totalSize = this.slotPtr.slot().full() ? bytes.length - 2 : bytes.length;
+
                 var valueSize = 0;
                 for (byte b : bytes) {
-                    if (b == 0) break;
+                    if (b == 0 || valueSize == totalSize) break;
                     valueSize += 1;
                 }
 
@@ -99,7 +115,12 @@ public class ReadCursor {
                     throw new Database.StreamTooLongException();
                 }
 
-                return Arrays.copyOfRange(bytes, 0, valueSize);
+                byte[] formatTag = null;
+                if (this.slotPtr.slot().full()) {
+                    formatTag = Arrays.copyOfRange(bytes, totalSize, bytes.length);
+                }
+
+                return new Database.Bytes(Arrays.copyOfRange(bytes, 0, valueSize), formatTag);
             }
             default -> throw new Database.UnexpectedTagException();
         }
@@ -155,11 +176,14 @@ public class ReadCursor {
                 buffer.putLong(this.slotPtr.slot().value());
                 var bytes = buffer.array();
 
+                var totalSize = this.slotPtr.slot().full() ? bytes.length - 2 : bytes.length;
+
                 var valueSize = 0;
                 for (byte b : bytes) {
-                    if (b == 0) break;
+                    if (b == 0 || valueSize == totalSize) break;
                     valueSize += 1;
                 }
+
                 // add one to get past the tag byte
                 var startPosition = this.slotPtr.position() + 1;
                 return new Reader(this, valueSize, startPosition, 0);
@@ -197,9 +221,11 @@ public class ReadCursor {
                 buffer.putLong(this.slotPtr.slot().value());
                 var bytes = buffer.array();
 
+                var totalSize = this.slotPtr.slot().full() ? bytes.length - 2 : bytes.length;
+
                 var size = 0;
                 for (byte b : bytes) {
-                    if (b == 0) break;
+                    if (b == 0 || size == totalSize) break;
                     size += 1;
                 }
                 return size;

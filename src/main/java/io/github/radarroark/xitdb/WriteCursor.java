@@ -64,6 +64,7 @@ public class WriteCursor extends ReadCursor {
         Slot slot;
         long startPosition;
         long relativePosition;
+        public byte[] formatTag;
 
         public Writer(WriteCursor parent, long size, Slot slot, long startPosition, long relativePosition) {
             this.parent = parent;
@@ -86,6 +87,14 @@ public class WriteCursor extends ReadCursor {
 
         public void finish() throws IOException {
             var writer = this.parent.db.core.writer();
+
+            if (this.formatTag != null) {
+                this.slot = this.slot.withFull(true); // byte arrays with format tags must have this set to true
+                this.parent.db.core.seek(this.parent.db.core.length());
+                var formatTagPos = this.parent.db.core.length();
+                if (this.startPosition + this.size != formatTagPos) throw new Database.UnexpectedWriterPositionException();
+                writer.write(this.formatTag);
+            }
 
             this.parent.db.core.seek(this.slot.value());
             writer.writeLong(this.size);

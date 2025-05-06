@@ -186,13 +186,28 @@ public class Database {
     public static record Uint(long value) implements WriteableData {}
     public static record Int(long value) implements WriteableData {}
     public static record Float(double value) implements WriteableData {}
-    public static record Bytes(byte[] value) implements WriteableData {
+    public static record Bytes(byte[] value, byte[] formatTag) implements WriteableData {
         public Bytes(String value) throws UnsupportedEncodingException {
-            this(value.getBytes("UTF-8"));
+            this(value, null);
+        }
+
+        public Bytes(String value, String formatTag) throws UnsupportedEncodingException {
+            this(value.getBytes("UTF-8"), formatTag == null ? null : formatTag.getBytes("UTF-8"));
+        }
+
+        public Bytes(byte[] value) {
+            this(value, null);
+        }
+
+        public Bytes(byte[] value, byte[] formatTag) {
+            if (formatTag != null && formatTag.length != 2) throw new InvalidFormatTagSizeException();
+            this.value = value;
+            this.formatTag = formatTag;
         }
 
         public boolean isShort() {
-            if (this.value.length > 8) return false;
+            var totalSize = this.formatTag != null ? 6 : 8;
+            if (this.value.length > totalSize) return false;
             for (byte b : this.value) {
                 if (b == 0) return false;
             }
@@ -256,6 +271,8 @@ public class Database {
     public static class MustSetNewSlotsToFullException extends DatabaseException {}
     public static class EmptySlotException extends DatabaseException {}
     public static class ExpectedRootNodeException extends DatabaseException {}
+    public static class InvalidFormatTagSizeException extends DatabaseException {}
+    public static class UnexpectedWriterPositionException extends DatabaseException {}
 
     // init
 
@@ -773,11 +790,16 @@ public class Database {
                             if (bytes.isShort()) {
                                 var buffer = ByteBuffer.allocate(8);
                                 buffer.put(bytes.value());
+                                if (bytes.formatTag() != null) {
+                                    buffer.position(6);
+                                    buffer.put(bytes.formatTag());
+                                }
                                 buffer.position(0);
-                                yield new Slot(buffer.getLong(), Tag.SHORT_BYTES);
+                                yield new Slot(buffer.getLong(), Tag.SHORT_BYTES, bytes.formatTag() != null);
                             } else {
                                 var nextCursor = new WriteCursor(slotPtr, this);
                                 var cursorWriter = nextCursor.writer();
+                                cursorWriter.formatTag = bytes.formatTag(); // the writer will write the format tag when finish is called
                                 cursorWriter.write(bytes.value());
                                 cursorWriter.finish();
                                 yield cursorWriter.slot;

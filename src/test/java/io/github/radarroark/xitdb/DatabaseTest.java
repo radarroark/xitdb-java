@@ -889,12 +889,12 @@ class DatabaseTest {
 
             // read bar
             {
-                var fooCursor = rootCursor.readPath(new Database.PathPart[]{
+                var readBarCursor = rootCursor.readPath(new Database.PathPart[]{
                     new Database.ArrayListGet(-1),
                     new Database.HashMapGet(new Database.HashMapGetValue(barKey))
                 });
-                var fooValue = fooCursor.readBytes(MAX_READ_BYTES);
-                assertEquals("longstring", new String(fooValue));
+                var barValue = readBarCursor.readBytes(MAX_READ_BYTES);
+                assertEquals("longstring", new String(barValue));
             }
 
             // write bar -> shortstr
@@ -917,6 +917,102 @@ class DatabaseTest {
                 var barValue = new byte[(int)barCursor.count()];
                 barReader.readFully(barValue);
                 assertEquals("shortstr", new String(barValue));
+            }
+
+            // write bytes with a format tag
+            {
+                // shortstr
+                {
+                    var barCursor = rootCursor.writePath(new Database.PathPart[]{
+                        new Database.ArrayListInit(),
+                        new Database.ArrayListAppend(),
+                        new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                        new Database.HashMapInit(),
+                        new Database.HashMapGet(new Database.HashMapGetValue(barKey))
+                    });
+                    barCursor.write(new Database.Bytes("shortstr", "st"));
+
+                    // the slot tag is BYTES because the byte array is > 8 bytes long including the format tag
+                    assertEquals(Tag.BYTES, barCursor.slot().tag());
+                    assertEquals(8, barCursor.count());
+
+                    // read bar
+                    var readBarCursor = rootCursor.readPath(new Database.PathPart[]{
+                        new Database.ArrayListGet(-1),
+                        new Database.HashMapGet(new Database.HashMapGetValue(barKey))
+                    });
+                    var barBytes = readBarCursor.readBytesObject(MAX_READ_BYTES);
+                    assertEquals("shortstr", new String(barBytes.value()));
+                    assertEquals("st", new String(barBytes.formatTag()));
+
+                    // make sure that BYTES can be read with a reader
+                    var barReader = barCursor.reader();
+                    var barValue = new byte[(int)barCursor.count()];
+                    barReader.readFully(barValue);
+                    assertEquals("shortstr", new String(barValue));
+                }
+
+                // shorts
+                {
+                    var barCursor = rootCursor.writePath(new Database.PathPart[]{
+                        new Database.ArrayListInit(),
+                        new Database.ArrayListAppend(),
+                        new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                        new Database.HashMapInit(),
+                        new Database.HashMapGet(new Database.HashMapGetValue(barKey))
+                    });
+                    barCursor.write(new Database.Bytes("shorts", "st"));
+
+                    // the slot tag is SHORT_BYTES because the byte array is <= 8 bytes long including the format tag
+                    assertEquals(Tag.SHORT_BYTES, barCursor.slot().tag());
+                    assertEquals(6, barCursor.count());
+
+                    // read bar
+                    var readBarCursor = rootCursor.readPath(new Database.PathPart[]{
+                        new Database.ArrayListGet(-1),
+                        new Database.HashMapGet(new Database.HashMapGetValue(barKey))
+                    });
+                    var barBytes = readBarCursor.readBytesObject(MAX_READ_BYTES);
+                    assertEquals("shorts", new String(barBytes.value()));
+                    assertEquals("st", new String(barBytes.formatTag()));
+
+                    // make sure that SHORT_BYTES can be read with a reader
+                    var barReader = barCursor.reader();
+                    var barValue = new byte[(int)barCursor.count()];
+                    barReader.readFully(barValue);
+                    assertEquals("shorts", new String(barValue));
+                }
+
+                // short
+                {
+                    var barCursor = rootCursor.writePath(new Database.PathPart[]{
+                        new Database.ArrayListInit(),
+                        new Database.ArrayListAppend(),
+                        new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                        new Database.HashMapInit(),
+                        new Database.HashMapGet(new Database.HashMapGetValue(barKey))
+                    });
+                    barCursor.write(new Database.Bytes("short", "st"));
+
+                    // the slot tag is SHORT_BYTES because the byte array is <= 8 bytes long including the format tag
+                    assertEquals(Tag.SHORT_BYTES, barCursor.slot().tag());
+                    assertEquals(5, barCursor.count());
+
+                    // read bar
+                    var readBarCursor = rootCursor.readPath(new Database.PathPart[]{
+                        new Database.ArrayListGet(-1),
+                        new Database.HashMapGet(new Database.HashMapGetValue(barKey))
+                    });
+                    var barBytes = readBarCursor.readBytesObject(MAX_READ_BYTES);
+                    assertEquals("short", new String(barBytes.value()));
+                    assertEquals("st", new String(barBytes.formatTag()));
+
+                    // make sure that SHORT_BYTES can be read with a reader
+                    var barReader = barCursor.reader();
+                    var barValue = new byte[(int)barCursor.count()];
+                    barReader.readFully(barValue);
+                    assertEquals("short", new String(barValue));
+                }
             }
 
             // read foo into buffer
