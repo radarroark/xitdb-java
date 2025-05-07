@@ -61,6 +61,18 @@ public class WriteHashMap extends ReadHashMap {
         return putCursor(hash);
     }
 
+    public void putKey(Database.Bytes key, Database.WriteableData data) throws Exception {
+        putKey(this.cursor.db.md.digest(key.value()), data);
+    }
+
+    public WriteCursor putKeyCursor(Database.Bytes key) throws Exception {
+        return putKeyCursor(this.cursor.db.md.digest(key.value()));
+    }
+
+    public boolean remove(Database.Bytes key) throws Exception {
+        return remove(this.cursor.db.md.digest(key.value()));
+    }
+
     // methods that take a hash directly
 
     public void put(byte[] hash, Database.WriteableData data) throws Exception {

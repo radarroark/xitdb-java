@@ -40,6 +40,28 @@ public class ReadHashMap {
         return getKeyValuePair(this.cursor.db.md.digest(key.getBytes("UTF-8")));
     }
 
+    // methods that take a Database.Bytes key and hash it for you
+
+    public ReadCursor getCursor(Database.Bytes key) throws Exception {
+        return getCursor(this.cursor.db.md.digest(key.value()));
+    }
+
+    public Slot getSlot(Database.Bytes key) throws Exception {
+        return getSlot(this.cursor.db.md.digest(key.value()));
+    }
+
+    public ReadCursor getKeyCursor(Database.Bytes key) throws Exception {
+        return getKeyCursor(this.cursor.db.md.digest(key.value()));
+    }
+
+    public Slot getKeySlot(Database.Bytes key) throws Exception {
+        return getKeySlot(this.cursor.db.md.digest(key.value()));
+    }
+
+    public ReadCursor.KeyValuePairCursor getKeyValuePair(Database.Bytes key) throws Exception {
+        return getKeyValuePair(this.cursor.db.md.digest(key.value()));
+    }
+
     // methods that take a hash directly
 
     public ReadCursor getCursor(byte[] hash) throws Exception {
