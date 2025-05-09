@@ -3,48 +3,45 @@ package io.github.radarroark.xitdb;
 import java.io.IOException;
 
 public class WriteArrayList extends ReadArrayList {
-    public WriteCursor cursor;
-
     public WriteArrayList(WriteCursor cursor) throws Exception {
-        super(cursor);
-        this.cursor = cursor.writePath(new Database.PathPart[]{
+        super(cursor.writePath(new Database.PathPart[]{
             new Database.ArrayListInit()
-        });
+        }));
     }
 
     @Override
     public WriteCursor.Iterator iterator() throws IOException {
-        return this.cursor.iterator();
+        return ((WriteCursor)this.cursor).iterator();
     }
 
     public void put(long index, Database.WriteableData data) throws Exception {
-        this.cursor.writePath(new Database.PathPart[]{
+        ((WriteCursor)this.cursor).writePath(new Database.PathPart[]{
             new Database.ArrayListGet(index),
             new Database.WriteData(data)
         });
     }
 
     public WriteCursor putCursor(long index) throws Exception {
-        return this.cursor.writePath(new Database.PathPart[]{
+        return ((WriteCursor)this.cursor).writePath(new Database.PathPart[]{
             new Database.ArrayListGet(index),
         });
     }
 
     public void append(Database.WriteableData data) throws Exception {
-        this.cursor.writePath(new Database.PathPart[]{
+        ((WriteCursor)this.cursor).writePath(new Database.PathPart[]{
             new Database.ArrayListAppend(),
             new Database.WriteData(data),
         });
     }
 
     public WriteCursor appendCursor() throws Exception {
-        return this.cursor.writePath(new Database.PathPart[]{
+        return ((WriteCursor)this.cursor).writePath(new Database.PathPart[]{
             new Database.ArrayListAppend(),
         });
     }
 
     public void appendContext(Database.WriteableData data, Database.ContextFunction fn) throws Exception {
-        this.cursor.writePath(new Database.PathPart[]{
+        ((WriteCursor)this.cursor).writePath(new Database.PathPart[]{
             new Database.ArrayListAppend(),
             new Database.WriteData(data),
             new Database.Context(fn)
@@ -54,7 +51,7 @@ public class WriteArrayList extends ReadArrayList {
     }
 
     public void slice(long size) throws Exception {
-        this.cursor.writePath(new Database.PathPart[]{
+        ((WriteCursor)this.cursor).writePath(new Database.PathPart[]{
             new Database.ArrayListSlice(size)
         });
     }
