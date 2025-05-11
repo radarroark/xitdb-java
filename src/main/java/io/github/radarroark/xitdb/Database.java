@@ -485,9 +485,17 @@ public class Database {
                     var tag = isTopLevel ? this.header.tag : slotPtr.slot().tag();
                     if (tag != Tag.ARRAY_LIST) throw new UnexpectedTagException();
 
+                    var reader = this.core.reader();
                     var nextArrayListStart = slotPtr.slot().value();
 
-                    var appendResult = readArrayListSlotAppend(nextArrayListStart, writeMode, isTopLevel);
+                    // read header
+                    this.core.seek(nextArrayListStart);
+                    var headerBytes = new byte[ArrayListHeader.length];
+                    reader.readFully(headerBytes);
+                    var origHeader = ArrayListHeader.fromBytes(headerBytes);
+
+                    // append
+                    var appendResult = readArrayListSlotAppend(origHeader, writeMode, isTopLevel);
                     var finalSlotPtr = readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), appendResult.slotPtr());
 
                     var writer = this.core.writer();
@@ -625,9 +633,17 @@ public class Database {
 
                     if (slotPtr.slot().tag() != Tag.LINKED_ARRAY_LIST) throw new UnexpectedTagException();
 
+                    var reader = this.core.reader();
                     var nextArrayListStart = slotPtr.slot().value();
 
-                    var appendResult = readLinkedArrayListSlotAppend(nextArrayListStart, writeMode, isTopLevel);
+                    // read header
+                    this.core.seek(nextArrayListStart);
+                    var headerBytes = new byte[LinkedArrayListHeader.length];
+                    reader.readFully(headerBytes);
+                    var origHeader = LinkedArrayListHeader.fromBytes(headerBytes);
+
+                    // append
+                    var appendResult = readLinkedArrayListSlotAppend(origHeader, writeMode, isTopLevel);
                     var finalSlotPtr = readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), appendResult.slotPtr().slotPtr());
 
                     // update header
@@ -1122,14 +1138,9 @@ public class Database {
 
     public static record ArrayListAppendResult(ArrayListHeader header, SlotPointer slotPtr) {}
 
-    private ArrayListAppendResult readArrayListSlotAppend(long indexStart, WriteMode writeMode, boolean isTopLevel) throws IOException {
-        var reader = this.core.reader();
+    private ArrayListAppendResult readArrayListSlotAppend(ArrayListHeader header, WriteMode writeMode, boolean isTopLevel) throws IOException {
         var writer = this.core.writer();
 
-        this.core.seek(indexStart);
-        var headerBytes = new byte[ArrayListHeader.length];
-        reader.readFully(headerBytes);
-        var header = ArrayListHeader.fromBytes(headerBytes);
         var indexPos = header.ptr();
 
         var key = header.size;
@@ -1252,14 +1263,9 @@ public class Database {
 
     public static record LinkedArrayListAppendResult(LinkedArrayListHeader header, LinkedArrayListSlotPointer slotPtr) {}
 
-    private LinkedArrayListAppendResult readLinkedArrayListSlotAppend(long indexStart, WriteMode writeMode, boolean isTopLevel) throws IOException {
-        var reader = this.core.reader();
+    private LinkedArrayListAppendResult readLinkedArrayListSlotAppend(LinkedArrayListHeader header, WriteMode writeMode, boolean isTopLevel) throws IOException {
         var writer = this.core.writer();
 
-        this.core.seek(indexStart);
-        var headerBytes = new byte[LinkedArrayListHeader.length];
-        reader.readFully(headerBytes);
-        var header = LinkedArrayListHeader.fromBytes(headerBytes);
         var ptr = header.ptr;
         var key = header.size;
         var shift = header.shift;
