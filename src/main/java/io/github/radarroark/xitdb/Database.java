@@ -157,7 +157,7 @@ public class Database {
         }
     }
 
-    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, ArrayListSlice, LinkedArrayListInit, LinkedArrayListGet, LinkedArrayListAppend, LinkedArrayListSlice, LinkedArrayListConcat, LinkedArrayListInsert, HashMapInit, HashMapGet, HashMapRemove, WriteData, Context {}
+    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, ArrayListSlice, LinkedArrayListInit, LinkedArrayListGet, LinkedArrayListAppend, LinkedArrayListSlice, LinkedArrayListConcat, LinkedArrayListInsert, LinkedArrayListRemove, HashMapInit, HashMapGet, HashMapRemove, WriteData, Context {}
     public static record ArrayListInit() implements PathPart {}
     public static record ArrayListGet(long index) implements PathPart {}
     public static record ArrayListAppend() implements PathPart {}
@@ -168,6 +168,7 @@ public class Database {
     public static record LinkedArrayListSlice(long offset, long size) implements PathPart {}
     public static record LinkedArrayListConcat(Slot list) implements PathPart {}
     public static record LinkedArrayListInsert(long index) implements PathPart {}
+    public static record LinkedArrayListRemove(long index) implements PathPart {}
     public static record HashMapInit() implements PathPart {}
     public static record HashMapGet(HashMapGetTarget target) implements PathPart {}
     public static record HashMapRemove(byte[] hash) implements PathPart {}
@@ -264,9 +265,7 @@ public class Database {
     public static class StreamTooLongException extends DatabaseException {}
     public static class EndOfStreamException extends DatabaseException {}
     public static class InvalidOffsetException extends DatabaseException {}
-    public static class ArrayListSliceOutOfBoundsException extends DatabaseException {}
-    public static class LinkedArrayListSliceOutOfBoundsException extends DatabaseException {}
-    public static class LinkedArrayListInsertOutOfBoundsException extends DatabaseException {}
+    public static class OutOfBoundsException extends DatabaseException {}
     public static class InvalidTopLevelTypeException extends DatabaseException {}
     public static class ExpectedUnsignedLongException extends DatabaseException {}
     public static class NoAvailableSlotsException extends DatabaseException {}
@@ -726,7 +725,7 @@ public class Database {
                     var origHeader = LinkedArrayListHeader.fromBytes(headerBytes);
 
                     if (linkedArrayListInsert.index >= origHeader.size()) {
-                        throw new LinkedArrayListInsertOutOfBoundsException();
+                        throw new OutOfBoundsException();
                     }
 
                     // split up the list
@@ -744,6 +743,44 @@ public class Database {
 
                     // recur down the rest of the path
                     var finalSlotPtr = readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr.slotPtr());
+
+                    // update header
+                    var writer = this.core.writer();
+                    this.core.seek(nextArrayListStart);
+                    writer.write(concatHeader.toBytes());
+
+                    return finalSlotPtr;
+                }
+                case LinkedArrayListRemove linkedArrayListRemove -> {
+                    if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
+
+                    if (slotPtr.slot().tag() != Tag.LINKED_ARRAY_LIST) throw new UnexpectedTagException();
+
+                    var reader = this.core.reader();
+                    var nextArrayListStart = slotPtr.slot().value();
+
+                    // read header
+                    this.core.seek(nextArrayListStart);
+                    var headerBytes = new byte[LinkedArrayListHeader.length];
+                    reader.readFully(headerBytes);
+                    var origHeader = LinkedArrayListHeader.fromBytes(headerBytes);
+
+                    if (linkedArrayListRemove.index >= origHeader.size()) {
+                        throw new OutOfBoundsException();
+                    }
+
+                    // split up the list
+                    var headerA = readLinkedArrayListSlice(origHeader, 0, linkedArrayListRemove.index);
+                    var headerB = readLinkedArrayListSlice(origHeader, linkedArrayListRemove.index + 1, origHeader.size - (linkedArrayListRemove.index + 1));
+
+                    // concat the lists
+                    var concatHeader = readLinkedArrayListConcat(headerA, headerB);
+
+                    // get pointer to the new list
+                    var nextSlotPtr = new SlotPointer(concatHeader.ptr(), new Slot(nextArrayListStart, Tag.LINKED_ARRAY_LIST));
+
+                    // recur down the rest of the path
+                    var finalSlotPtr = readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr);
 
                     // update header
                     var writer = this.core.writer();
@@ -1277,7 +1314,7 @@ public class Database {
         var reader = this.core.reader();
 
         if (size > header.size() || size < 0) {
-            throw new ArrayListSliceOutOfBoundsException();
+            throw new OutOfBoundsException();
         }
 
         var prevShift = (byte) (header.size < SLOT_COUNT + 1 ? 0 : Math.log(header.size - 1) / Math.log(SLOT_COUNT));
@@ -1544,7 +1581,7 @@ public class Database {
         var writer = this.core.writer();
 
         if (offset + size > header.size) {
-            throw new LinkedArrayListSliceOutOfBoundsException();
+            throw new OutOfBoundsException();
         }
 
         // read the list's left blocks
@@ -1584,16 +1621,15 @@ public class Database {
                     }
                     slotI += 1;
                 }
-                // middle slots
-                if (leftBlock.i() != rightBlock.i()) {
+                if (size > 1) {
+                    // middle slots
                     for (int j = leftBlock.i() + 1; j < rightBlock.i(); j++) {
                         var middleSlot = leftBlock.block()[j];
                         newRootBlock[slotI] = middleSlot;
                         slotI += 1;
                     }
-                }
-                // right slot
-                if (size > 1) {
+
+                    // right slot
                     if (nextSlots[1] != null) {
                         newRootBlock[slotI] = nextSlots[1];
                     } else {

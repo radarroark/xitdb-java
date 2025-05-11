@@ -312,6 +312,7 @@ class DatabaseTest {
                 var todos = new WriteLinkedArrayList(todosCursor);
                 todos.concat(todosCursor.slot());
                 todos.slice(1, 2);
+                todos.remove(1);
             });
 
             var momentCursor = history.getCursor(-1);
@@ -347,7 +348,7 @@ class DatabaseTest {
 
             var todosCursor = moment.getCursor("todos");
             var todos = new ReadLinkedArrayList(todosCursor);
-            assertEquals(2, todos.count());
+            assertEquals(1, todos.count());
 
             var todoCursor = todos.getCursor(0);
             var todoValue = todoCursor.readBytes(MAX_READ_BYTES);
@@ -664,7 +665,7 @@ class DatabaseTest {
         });
     }
 
-    void testInsert(Core core, Hasher hasher, int originalSize, long insertIndex) throws Exception {
+    void testInsertAndRemove(Core core, Hasher hasher, int originalSize, long insertIndex) throws Exception {
         core.setLength(0);
         var db = new Database(core, hasher);
         var rootCursor = db.rootCursor();
@@ -706,6 +707,55 @@ class DatabaseTest {
                 evenListInsertCursor.writePath(new Database.PathPart[]{
                     new Database.LinkedArrayListInsert(insertIndex),
                     new Database.WriteData(new Database.Uint(insertValue))
+                });
+
+                // check all the values in the new list
+                for (int i = 0; i < values.size(); i++) {
+                    var val = values.get(i);
+                    var n = cursor.readPath(new Database.PathPart[]{
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-insert".getBytes()))),
+                        new Database.LinkedArrayListGet(i)
+                    }).slotPtr.slot().value();
+                    assertEquals(val, n);
+                }
+
+                // check all values in the new list with an iterator
+                {
+                    var iter = evenListInsertCursor.iterator();
+                    int i = 0;
+                    while (iter.hasNext()) {
+                        var numCursor = iter.next();
+                        assertEquals(values.get(i), numCursor.readUint());
+                        i += 1;
+                    }
+                    assertEquals(values.size(), i);
+                }
+
+                // there are no extra items
+                assertEquals(null, cursor.readPath(new Database.PathPart[]{
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-insert".getBytes()))),
+                    new Database.LinkedArrayListGet(values.size())
+                }));
+            })
+        });
+
+        rootCursor.writePath(new Database.PathPart[]{
+            new Database.ArrayListInit(),
+            new Database.ArrayListAppend(),
+            new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+            new Database.HashMapInit(),
+            new Database.Context((cursor) -> {
+                var values = new ArrayList<Long>();
+
+                for (int i = 0; i < originalSize; i++) {
+                    long n = i * 2;
+                    values.add(n);
+                }
+
+                // remove inserted value from the list
+                var evenListInsertCursor = cursor.writePath(new Database.PathPart[]{
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-insert".getBytes()))),
+                    new Database.LinkedArrayListRemove(insertIndex),
                 });
 
                 // check all the values in the new list
@@ -1883,10 +1933,11 @@ class DatabaseTest {
             testConcat(core, hasher, 0, 0);
 
             // insert linked_array_list
-            testInsert(core, hasher, 10, 0);
-            testInsert(core, hasher, 10, 5);
-            testInsert(core, hasher, 10, 9);
-            testInsert(core, hasher, Database.SLOT_COUNT * 5, Database.SLOT_COUNT * 2);
+            testInsertAndRemove(core, hasher, 1, 0);
+            testInsertAndRemove(core, hasher, 10, 0);
+            testInsertAndRemove(core, hasher, 10, 5);
+            testInsertAndRemove(core, hasher, 10, 9);
+            testInsertAndRemove(core, hasher, Database.SLOT_COUNT * 5, Database.SLOT_COUNT * 2);
         }
 
         // concat linked_array_list multiple times

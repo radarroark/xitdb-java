@@ -58,4 +58,10 @@ public class WriteLinkedArrayList extends ReadLinkedArrayList {
             new Database.WriteData(data)
         });
     }
+
+    public void remove(long index) throws Exception {
+        ((WriteCursor)this.cursor).writePath(new Database.PathPart[]{
+            new Database.LinkedArrayListRemove(index),
+        });
+    }
 }
