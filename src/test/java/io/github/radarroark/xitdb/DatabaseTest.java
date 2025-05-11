@@ -229,6 +229,7 @@ class DatabaseTest {
                 var todos = new WriteLinkedArrayList(todosCursor);
                 todos.append(new Database.Bytes("Pay the bills"));
                 todos.append(new Database.Bytes("Get an oil change"));
+                todos.insert(1, new Database.Bytes("Wash the car"));
             });
 
             // get the most recent copy of the database, like a moment
@@ -267,7 +268,7 @@ class DatabaseTest {
 
             var todosCursor = moment.getCursor("todos");
             var todos = new ReadLinkedArrayList(todosCursor);
-            assertEquals(2, todos.count());
+            assertEquals(3, todos.count());
 
             var todoCursor = todos.getCursor(0);
             var todoValue = todoCursor.readBytes(MAX_READ_BYTES);
@@ -310,7 +311,7 @@ class DatabaseTest {
                 var todosCursor = moment.putCursor("todos");
                 var todos = new WriteLinkedArrayList(todosCursor);
                 todos.concat(todosCursor.slot());
-                todos.slice(1, 1);
+                todos.slice(1, 2);
             });
 
             var momentCursor = history.getCursor(-1);
@@ -346,11 +347,11 @@ class DatabaseTest {
 
             var todosCursor = moment.getCursor("todos");
             var todos = new ReadLinkedArrayList(todosCursor);
-            assertEquals(1, todos.count());
+            assertEquals(2, todos.count());
 
             var todoCursor = todos.getCursor(0);
             var todoValue = todoCursor.readBytes(MAX_READ_BYTES);
-            assertEquals("Get an oil change", new String(todoValue));
+            assertEquals("Wash the car", new String(todoValue));
         }
 
         // the old data hasn't changed
@@ -386,7 +387,7 @@ class DatabaseTest {
 
             var todosCursor = moment.getCursor("todos");
             var todos = new ReadLinkedArrayList(todosCursor);
-            assertEquals(2, todos.count());
+            assertEquals(3, todos.count());
 
             var todoCursor = todos.getCursor(0);
             var todoValue = todoCursor.readBytes(MAX_READ_BYTES);
@@ -428,7 +429,7 @@ class DatabaseTest {
 
             var todosCursor = moment.getCursor("todos");
             var todos = new ReadLinkedArrayList(todosCursor);
-            assertEquals(2, todos.count());
+            assertEquals(3, todos.count());
 
             var todoCursor = todos.getCursor(0);
             var todoValue = todoCursor.readBytes(MAX_READ_BYTES);
@@ -657,6 +658,81 @@ class DatabaseTest {
                 // there are no extra items
                 assertEquals(null, cursor.readPath(new Database.PathPart[]{
                     new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("combo".getBytes()))),
+                    new Database.LinkedArrayListGet(values.size())
+                }));
+            })
+        });
+    }
+
+    void testInsert(Core core, Hasher hasher, int originalSize, long insertIndex) throws Exception {
+        core.setLength(0);
+        var db = new Database(core, hasher);
+        var rootCursor = db.rootCursor();
+
+        long insertValue = 12345;
+
+        rootCursor.writePath(new Database.PathPart[]{
+            new Database.ArrayListInit(),
+            new Database.ArrayListAppend(),
+            new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+            new Database.HashMapInit(),
+            new Database.Context((cursor) -> {
+                var values = new ArrayList<Long>();
+
+                // create list
+                for (int i = 0; i < originalSize; i++) {
+                    if (i == insertIndex) {
+                        values.add(insertValue);
+                    }
+                    long n = i * 2;
+                    values.add(n);
+                    cursor.writePath(new Database.PathPart[]{
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes()))),
+                        new Database.LinkedArrayListInit(),
+                        new Database.LinkedArrayListAppend(),
+                        new Database.WriteData(new Database.Uint(n))
+                    });
+                }
+
+                // insert into list
+                var evenListCursor = cursor.readPath(new Database.PathPart[]{
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes())))
+                });
+                var evenListInsertCursor = cursor.writePath(new Database.PathPart[]{
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-insert".getBytes()))),
+                    new Database.WriteData(evenListCursor.slotPtr.slot()),
+                    new Database.LinkedArrayListInit(),
+                });
+                evenListInsertCursor.writePath(new Database.PathPart[]{
+                    new Database.LinkedArrayListInsert(insertIndex),
+                    new Database.WriteData(new Database.Uint(insertValue))
+                });
+
+                // check all the values in the new list
+                for (int i = 0; i < values.size(); i++) {
+                    var val = values.get(i);
+                    var n = cursor.readPath(new Database.PathPart[]{
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-insert".getBytes()))),
+                        new Database.LinkedArrayListGet(i)
+                    }).slotPtr.slot().value();
+                    assertEquals(val, n);
+                }
+
+                // check all values in the new list with an iterator
+                {
+                    var iter = evenListInsertCursor.iterator();
+                    int i = 0;
+                    while (iter.hasNext()) {
+                        var numCursor = iter.next();
+                        assertEquals(values.get(i), numCursor.readUint());
+                        i += 1;
+                    }
+                    assertEquals(values.size(), i);
+                }
+
+                // there are no extra items
+                assertEquals(null, cursor.readPath(new Database.PathPart[]{
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-insert".getBytes()))),
                     new Database.LinkedArrayListGet(values.size())
                 }));
             })
@@ -1805,6 +1881,12 @@ class DatabaseTest {
             testConcat(core, hasher, Database.SLOT_COUNT, Database.SLOT_COUNT);
             testConcat(core, hasher, 1, 1);
             testConcat(core, hasher, 0, 0);
+
+            // insert linked_array_list
+            testInsert(core, hasher, 10, 0);
+            testInsert(core, hasher, 10, 5);
+            testInsert(core, hasher, 10, 9);
+            testInsert(core, hasher, Database.SLOT_COUNT * 5, Database.SLOT_COUNT * 2);
         }
 
         // concat linked_array_list multiple times

@@ -157,7 +157,7 @@ public class Database {
         }
     }
 
-    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, ArrayListSlice, LinkedArrayListInit, LinkedArrayListGet, LinkedArrayListAppend, LinkedArrayListSlice, LinkedArrayListConcat, HashMapInit, HashMapGet, HashMapRemove, WriteData, Context {}
+    public static sealed interface PathPart permits ArrayListInit, ArrayListGet, ArrayListAppend, ArrayListSlice, LinkedArrayListInit, LinkedArrayListGet, LinkedArrayListAppend, LinkedArrayListSlice, LinkedArrayListConcat, LinkedArrayListInsert, HashMapInit, HashMapGet, HashMapRemove, WriteData, Context {}
     public static record ArrayListInit() implements PathPart {}
     public static record ArrayListGet(long index) implements PathPart {}
     public static record ArrayListAppend() implements PathPart {}
@@ -167,6 +167,7 @@ public class Database {
     public static record LinkedArrayListAppend() implements PathPart {}
     public static record LinkedArrayListSlice(long offset, long size) implements PathPart {}
     public static record LinkedArrayListConcat(Slot list) implements PathPart {}
+    public static record LinkedArrayListInsert(long index) implements PathPart {}
     public static record HashMapInit() implements PathPart {}
     public static record HashMapGet(HashMapGetTarget target) implements PathPart {}
     public static record HashMapRemove(byte[] hash) implements PathPart {}
@@ -265,6 +266,7 @@ public class Database {
     public static class InvalidOffsetException extends DatabaseException {}
     public static class ArrayListSliceOutOfBoundsException extends DatabaseException {}
     public static class LinkedArrayListSliceOutOfBoundsException extends DatabaseException {}
+    public static class LinkedArrayListInsertOutOfBoundsException extends DatabaseException {}
     public static class InvalidTopLevelTypeException extends DatabaseException {}
     public static class ExpectedUnsignedLongException extends DatabaseException {}
     public static class NoAvailableSlotsException extends DatabaseException {}
@@ -701,6 +703,47 @@ public class Database {
                     // concat
                     var concatHeader = readLinkedArrayListConcat(headerA, headerB);
                     var finalSlotPtr = readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), slotPtr);
+
+                    // update header
+                    var writer = this.core.writer();
+                    this.core.seek(nextArrayListStart);
+                    writer.write(concatHeader.toBytes());
+
+                    return finalSlotPtr;
+                }
+                case LinkedArrayListInsert linkedArrayListInsert -> {
+                    if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
+
+                    if (slotPtr.slot().tag() != Tag.LINKED_ARRAY_LIST) throw new UnexpectedTagException();
+
+                    var reader = this.core.reader();
+                    var nextArrayListStart = slotPtr.slot().value();
+
+                    // read header
+                    this.core.seek(nextArrayListStart);
+                    var headerBytes = new byte[LinkedArrayListHeader.length];
+                    reader.readFully(headerBytes);
+                    var origHeader = LinkedArrayListHeader.fromBytes(headerBytes);
+
+                    if (linkedArrayListInsert.index >= origHeader.size()) {
+                        throw new LinkedArrayListInsertOutOfBoundsException();
+                    }
+
+                    // split up the list
+                    var headerA = readLinkedArrayListSlice(origHeader, 0, linkedArrayListInsert.index);
+                    var headerB = readLinkedArrayListSlice(origHeader, linkedArrayListInsert.index, origHeader.size - linkedArrayListInsert.index);
+
+                    // add new slot to first list
+                    var appendResult = readLinkedArrayListSlotAppend(headerA, writeMode, isTopLevel);
+
+                    // concat the lists
+                    var concatHeader = readLinkedArrayListConcat(appendResult.header(), headerB);
+
+                    // get pointer to the new slot
+                    var nextSlotPtr = readLinkedArrayListSlot(concatHeader.ptr(), linkedArrayListInsert.index, concatHeader.shift(), WriteMode.READ_ONLY, isTopLevel);
+
+                    // recur down the rest of the path
+                    var finalSlotPtr = readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr.slotPtr());
 
                     // update header
                     var writer = this.core.writer();
@@ -1309,7 +1352,7 @@ public class Database {
         if (shift == 0) {
             for (int blockI = 0; blockI < block.length; blockI++) {
                 var blockSlot = block[blockI];
-                if (blockSlot.slot().tag() != Tag.NONE || blockSlot.slot().full() || blockI == i) {
+                if (!blockSlot.slot().empty() || blockI == i) {
                     n += 1;
                 }
             }
@@ -1325,7 +1368,7 @@ public class Database {
 
     private static long slotLeafCount(LinkedArrayListSlot slot, byte shift) {
         if (shift == 0) {
-            if (slot.slot().tag() == Tag.NONE && !slot.slot().full()) {
+            if (slot.slot().empty()) {
                 return 0;
             } else {
                 return 1;
@@ -1533,12 +1576,14 @@ public class Database {
                 var newRootBlock = new LinkedArrayListSlot[SLOT_COUNT];
                 populateArray(newRootBlock);
                 // left slot
-                if (nextSlots[0] != null) {
-                    newRootBlock[slotI] = nextSlots[0];
-                } else {
-                    newRootBlock[slotI] = leftBlock.block()[leftBlock.i()];
+                if (size > 0) {
+                    if (nextSlots[0] != null) {
+                        newRootBlock[slotI] = nextSlots[0];
+                    } else {
+                        newRootBlock[slotI] = leftBlock.block()[leftBlock.i()];
+                    }
+                    slotI += 1;
                 }
-                slotI += 1;
                 // middle slots
                 if (leftBlock.i() != rightBlock.i()) {
                     for (int j = leftBlock.i() + 1; j < rightBlock.i(); j++) {
@@ -1548,10 +1593,12 @@ public class Database {
                     }
                 }
                 // right slot
-                if (nextSlots[1] != null) {
-                    newRootBlock[slotI] = nextSlots[1];
-                } else {
-                    newRootBlock[slotI] = leftBlock.block()[rightBlock.i()];
+                if (size > 1) {
+                    if (nextSlots[1] != null) {
+                        newRootBlock[slotI] = nextSlots[1];
+                    } else {
+                        newRootBlock[slotI] = leftBlock.block()[rightBlock.i()];
+                    }
                 }
                 nextBlocks[0] = newRootBlock;
             } else {
@@ -1626,7 +1673,7 @@ public class Database {
                             var blockSlot = blockMaybe[k];
                             writer.write(blockSlot.toBytes());
                             if (isLeafNode) {
-                                if (blockSlot.slot().tag() != Tag.NONE) {
+                                if (!blockSlot.slot().empty()) {
                                     leafCount += 1;
                                 }
                             } else {
@@ -1701,7 +1748,7 @@ public class Database {
                             continue;
                         }
                         // break on the first empty slot
-                        else if (blockSlot.slot().tag() == Tag.NONE) {
+                        else if (blockSlot.slot().empty()) {
                             break;
                         }
                         block[targetI] = blockSlot;
@@ -1724,7 +1771,7 @@ public class Database {
             // add the left block
             if (nextBlocks[0] != null) {
                 for (LinkedArrayListSlot blockSlot : nextBlocks[0]) {
-                    if (blockSlot.slot().tag() == Tag.NONE) {
+                    if (blockSlot.slot().empty()) {
                         break;
                     }
                     slotsToWrite[slotI] = blockSlot;
@@ -1743,7 +1790,7 @@ public class Database {
             // add the right block
             if (nextBlocks[1] != null) {
                 for (LinkedArrayListSlot blockSlot : nextBlocks[1]) {
-                    if (blockSlot.slot().tag() == Tag.NONE) {
+                    if (blockSlot.slot().empty()) {
                         break;
                     }
                     slotsToWrite[slotI] = blockSlot;
@@ -1761,7 +1808,7 @@ public class Database {
                 var block = Arrays.copyOfRange(slotsToWrite, start, start + SLOT_COUNT);
 
                 // this block is empty so don't bother writing it
-                if (block[0].slot().tag() == Tag.NONE) {
+                if (block[0].slot().empty()) {
                     break;
                 }
 
@@ -1771,7 +1818,7 @@ public class Database {
                 for (LinkedArrayListSlot blockSlot : block) {
                     writer.write(blockSlot.toBytes());
                     if (isLeafNode) {
-                        if (blockSlot.slot().tag() != Tag.NONE) {
+                        if (!blockSlot.slot().empty()) {
                             leafCount += 1;
                         }
                     } else {

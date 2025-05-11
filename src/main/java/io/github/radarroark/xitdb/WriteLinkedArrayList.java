@@ -51,4 +51,11 @@ public class WriteLinkedArrayList extends ReadLinkedArrayList {
             new Database.LinkedArrayListConcat(list)
         });
     }
+
+    public void insert(long index, Database.WriteableData data) throws Exception {
+        ((WriteCursor)this.cursor).writePath(new Database.PathPart[]{
+            new Database.LinkedArrayListInsert(index),
+            new Database.WriteData(data)
+        });
+    }
 }

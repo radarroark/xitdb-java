@@ -30,7 +30,7 @@ public class ReadCursor {
     public Slot readPathSlot(Database.PathPart[] path) throws Exception {
         try {
             var slotPtr = this.db.readSlotPointer(Database.WriteMode.READ_ONLY, path, this.slotPtr);
-            if (slotPtr.slot().tag() != Tag.NONE || slotPtr.slot().full()) {
+            if (!slotPtr.slot().empty()) {
                 return slotPtr.slot();
             } else {
                 return null;
@@ -481,7 +481,7 @@ public class ReadCursor {
                         // normally a slot that is .none should be skipped because it doesn't
                         // have a value, but if it's set to full, then it is actually a valid
                         // item that should be returned.
-                        if (nextSlot.tag() != Tag.NONE || nextSlot.full()) {
+                        if (!nextSlot.empty()) {
                             var position = level.position + (level.index * Slot.length);
                             return new ReadCursor(new SlotPointer(position, nextSlot), this.cursor.db);
                         } else {

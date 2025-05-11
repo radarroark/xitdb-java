@@ -21,6 +21,10 @@ public record Slot(long value, Tag tag, boolean full) implements Database.Writea
         return new Slot(this.value, this.tag, full);
     }
 
+    public boolean empty() {
+        return this.tag == Tag.NONE && !this.full;
+    }
+
     public byte[] toBytes() {
         var buffer = ByteBuffer.allocate(length);
         var tagInt = this.full ? 0b1000_0000 : 0;

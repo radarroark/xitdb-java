@@ -20,7 +20,7 @@ public class WriteCursor extends ReadCursor {
     }
 
     public void writeIfEmpty(Database.WriteableData data) throws Exception {
-        if (this.slotPtr.slot().tag() == Tag.NONE) {
+        if (this.slotPtr.slot().empty()) {
             write(data);
         }
     }
