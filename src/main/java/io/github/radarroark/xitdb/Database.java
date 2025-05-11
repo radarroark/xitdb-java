@@ -512,9 +512,17 @@ public class Database {
 
                     if (slotPtr.slot().tag() != Tag.ARRAY_LIST) throw new UnexpectedTagException();
 
+                    var reader = this.core.reader();
                     var nextArrayListStart = slotPtr.slot().value();
 
-                    var sliceHeader = readArrayListSlice(nextArrayListStart, arrayListSlice.size());
+                    // read header
+                    this.core.seek(nextArrayListStart);
+                    var headerBytes = new byte[ArrayListHeader.length];
+                    reader.readFully(headerBytes);
+                    var origHeader = ArrayListHeader.fromBytes(headerBytes);
+
+                    // slice
+                    var sliceHeader = readArrayListSlice(origHeader, arrayListSlice.size());
                     var finalSlotPtr = readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), slotPtr);
 
                     // update header
@@ -634,9 +642,17 @@ public class Database {
 
                     if (slotPtr.slot().tag() != Tag.LINKED_ARRAY_LIST) throw new UnexpectedTagException();
 
+                    var reader = this.core.reader();
                     var nextArrayListStart = slotPtr.slot().value();
 
-                    var sliceHeader = readLinkedArrayListSlice(nextArrayListStart, linkedArrayListSlice.offset(), linkedArrayListSlice.size());
+                    // read header
+                    this.core.seek(nextArrayListStart);
+                    var headerBytes = new byte[LinkedArrayListHeader.length];
+                    reader.readFully(headerBytes);
+                    var origHeader = LinkedArrayListHeader.fromBytes(headerBytes);
+
+                    // slice
+                    var sliceHeader = readLinkedArrayListSlice(origHeader, linkedArrayListSlice.offset(), linkedArrayListSlice.size());
                     var finalSlotPtr = readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), slotPtr);
 
                     // update header
@@ -653,9 +669,21 @@ public class Database {
 
                     if (linkedArrayListConcat.list().tag() != Tag.LINKED_ARRAY_LIST) throw new UnexpectedTagException();
 
+                    var reader = this.core.reader();
                     var nextArrayListStart = slotPtr.slot().value();
 
-                    var concatHeader = readLinkedArrayListConcat(nextArrayListStart, linkedArrayListConcat.list);
+                    // read headers
+                    this.core.seek(nextArrayListStart);
+                    var headerBytesA = new byte[LinkedArrayListHeader.length];
+                    reader.readFully(headerBytesA);
+                    var headerA = LinkedArrayListHeader.fromBytes(headerBytesA);
+                    this.core.seek(linkedArrayListConcat.list.value());
+                    var headerBytesB = new byte[LinkedArrayListHeader.length];
+                    reader.readFully(headerBytesB);
+                    var headerB = LinkedArrayListHeader.fromBytes(headerBytesB);
+
+                    // concat
+                    var concatHeader = readLinkedArrayListConcat(headerA, headerB);
                     var finalSlotPtr = readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), slotPtr);
 
                     // update header
@@ -1191,13 +1219,8 @@ public class Database {
         }
     }
 
-    private ArrayListHeader readArrayListSlice(long indexStart, long size) throws IOException {
+    private ArrayListHeader readArrayListSlice(ArrayListHeader header, long size) throws IOException {
         var reader = this.core.reader();
-
-        this.core.seek(indexStart);
-        var headerBytes = new byte[ArrayListHeader.length];
-        reader.readFully(headerBytes);
-        var header = ArrayListHeader.fromBytes(headerBytes);
 
         if (size > header.size() || size < 0) {
             throw new ArrayListSliceOutOfBoundsException();
@@ -1468,14 +1491,8 @@ public class Database {
         }
     }
 
-    private LinkedArrayListHeader readLinkedArrayListSlice(long indexStart, long offset, long size) throws IOException {
-        var reader = this.core.reader();
+    private LinkedArrayListHeader readLinkedArrayListSlice(LinkedArrayListHeader header, long offset, long size) throws IOException {
         var writer = this.core.writer();
-
-        this.core.seek(indexStart);
-        var headerBytes = new byte[LinkedArrayListHeader.length];
-        reader.readFully(headerBytes);
-        var header = LinkedArrayListHeader.fromBytes(headerBytes);
 
         if (offset + size > header.size) {
             throw new LinkedArrayListSliceOutOfBoundsException();
@@ -1638,24 +1655,15 @@ public class Database {
         return new LinkedArrayListHeader(nextShift, rootSlot.slot().value(), size);
     }
 
-    private LinkedArrayListHeader readLinkedArrayListConcat(long indexStart, Slot list) throws IOException {
-        var reader = this.core.reader();
+    private LinkedArrayListHeader readLinkedArrayListConcat(LinkedArrayListHeader headerA, LinkedArrayListHeader headerB) throws IOException {
         var writer = this.core.writer();
 
         // read the first list's blocks
-        this.core.seek(indexStart);
-        var headerBytesA = new byte[LinkedArrayListHeader.length];
-        reader.readFully(headerBytesA);
-        var headerA = LinkedArrayListHeader.fromBytes(headerBytesA);
         var blocksA = new ArrayList<LinkedArrayListBlockInfo>();
         var keyA = headerA.size() == 0 ? 0 : headerA.size() - 1;
         readLinkedArrayListBlocks(headerA.ptr(), keyA, headerA.shift(), blocksA);
 
         // read the second list's blocks
-        this.core.seek(list.value());
-        var headerBytesB = new byte[LinkedArrayListHeader.length];
-        reader.readFully(headerBytesB);
-        var headerB = LinkedArrayListHeader.fromBytes(headerBytesB);
         var blocksB = new ArrayList<LinkedArrayListBlockInfo>();
         readLinkedArrayListBlocks(headerB.ptr(), 0, headerB.shift(), blocksB);
 
