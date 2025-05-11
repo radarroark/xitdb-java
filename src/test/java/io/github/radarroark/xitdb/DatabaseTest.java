@@ -230,6 +230,11 @@ class DatabaseTest {
                 todos.append(new Database.Bytes("Pay the bills"));
                 todos.append(new Database.Bytes("Get an oil change"));
                 todos.insert(1, new Database.Bytes("Wash the car"));
+
+                // make sure `insertCursor` works as well
+                var todoCursor = todos.insertCursor(1);
+                new WriteHashMap(todoCursor);
+                todos.remove(1);
             });
 
             // get the most recent copy of the database, like a moment
