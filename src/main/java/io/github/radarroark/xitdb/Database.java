@@ -265,7 +265,6 @@ public class Database {
     public static class StreamTooLongException extends DatabaseException {}
     public static class EndOfStreamException extends DatabaseException {}
     public static class InvalidOffsetException extends DatabaseException {}
-    public static class OutOfBoundsException extends DatabaseException {}
     public static class InvalidTopLevelTypeException extends DatabaseException {}
     public static class ExpectedUnsignedLongException extends DatabaseException {}
     public static class NoAvailableSlotsException extends DatabaseException {}
@@ -724,13 +723,16 @@ public class Database {
                     reader.readFully(headerBytes);
                     var origHeader = LinkedArrayListHeader.fromBytes(headerBytes);
 
-                    if (linkedArrayListInsert.index >= origHeader.size()) {
-                        throw new OutOfBoundsException();
+                    // get the key
+                    var index = linkedArrayListInsert.index;
+                    if (index >= origHeader.size || index < -origHeader.size) {
+                        throw new KeyNotFoundException();
                     }
+                    var key = index < 0 ? origHeader.size - Math.abs(index) : index;
 
                     // split up the list
-                    var headerA = readLinkedArrayListSlice(origHeader, 0, linkedArrayListInsert.index);
-                    var headerB = readLinkedArrayListSlice(origHeader, linkedArrayListInsert.index, origHeader.size - linkedArrayListInsert.index);
+                    var headerA = readLinkedArrayListSlice(origHeader, 0, key);
+                    var headerB = readLinkedArrayListSlice(origHeader, key, origHeader.size - key);
 
                     // add new slot to first list
                     var appendResult = readLinkedArrayListSlotAppend(headerA, writeMode, isTopLevel);
@@ -739,7 +741,7 @@ public class Database {
                     var concatHeader = readLinkedArrayListConcat(appendResult.header(), headerB);
 
                     // get pointer to the new slot
-                    var nextSlotPtr = readLinkedArrayListSlot(concatHeader.ptr(), linkedArrayListInsert.index, concatHeader.shift(), WriteMode.READ_ONLY, isTopLevel);
+                    var nextSlotPtr = readLinkedArrayListSlot(concatHeader.ptr(), key, concatHeader.shift(), WriteMode.READ_ONLY, isTopLevel);
 
                     // recur down the rest of the path
                     var finalSlotPtr = readSlotPointer(writeMode, Arrays.copyOfRange(path, 1, path.length), nextSlotPtr.slotPtr());
@@ -765,13 +767,16 @@ public class Database {
                     reader.readFully(headerBytes);
                     var origHeader = LinkedArrayListHeader.fromBytes(headerBytes);
 
-                    if (linkedArrayListRemove.index >= origHeader.size()) {
-                        throw new OutOfBoundsException();
+                    // get the key
+                    var index = linkedArrayListRemove.index;
+                    if (index >= origHeader.size || index < -origHeader.size) {
+                        throw new KeyNotFoundException();
                     }
+                    var key = index < 0 ? origHeader.size - Math.abs(index) : index;
 
                     // split up the list
-                    var headerA = readLinkedArrayListSlice(origHeader, 0, linkedArrayListRemove.index);
-                    var headerB = readLinkedArrayListSlice(origHeader, linkedArrayListRemove.index + 1, origHeader.size - (linkedArrayListRemove.index + 1));
+                    var headerA = readLinkedArrayListSlice(origHeader, 0, key);
+                    var headerB = readLinkedArrayListSlice(origHeader, key + 1, origHeader.size - (key + 1));
 
                     // concat the lists
                     var concatHeader = readLinkedArrayListConcat(headerA, headerB);
@@ -1314,7 +1319,7 @@ public class Database {
         var reader = this.core.reader();
 
         if (size > header.size() || size < 0) {
-            throw new OutOfBoundsException();
+            throw new KeyNotFoundException();
         }
 
         var prevShift = (byte) (header.size < SLOT_COUNT + 1 ? 0 : Math.log(header.size - 1) / Math.log(SLOT_COUNT));
@@ -1581,7 +1586,7 @@ public class Database {
         var writer = this.core.writer();
 
         if (offset + size > header.size) {
-            throw new OutOfBoundsException();
+            throw new KeyNotFoundException();
         }
 
         // read the list's left blocks
