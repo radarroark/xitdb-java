@@ -8,7 +8,7 @@ public class WriteCursor extends ReadCursor {
     }
 
     public WriteCursor writePath(Database.PathPart[] path) throws Exception {
-        var slotPtr = this.db.readSlotPointer(Database.WriteMode.READ_WRITE, path, this.slotPtr);
+        var slotPtr = this.db.readSlotPointer(Database.WriteMode.READ_WRITE, path, 0, this.slotPtr);
         return new WriteCursor(slotPtr, this.db);
     }
 

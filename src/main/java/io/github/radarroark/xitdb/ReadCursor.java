@@ -20,7 +20,7 @@ public class ReadCursor {
 
     public ReadCursor readPath(Database.PathPart[] path) throws Exception {
         try {
-            var slotPtr = this.db.readSlotPointer(Database.WriteMode.READ_ONLY, path, this.slotPtr);
+            var slotPtr = this.db.readSlotPointer(Database.WriteMode.READ_ONLY, path, 0, this.slotPtr);
             return new ReadCursor(slotPtr, this.db);
         } catch (Database.KeyNotFoundException e) {
             return null;
@@ -29,7 +29,7 @@ public class ReadCursor {
 
     public Slot readPathSlot(Database.PathPart[] path) throws Exception {
         try {
-            var slotPtr = this.db.readSlotPointer(Database.WriteMode.READ_ONLY, path, this.slotPtr);
+            var slotPtr = this.db.readSlotPointer(Database.WriteMode.READ_ONLY, path, 0, this.slotPtr);
             if (!slotPtr.slot().empty()) {
                 return slotPtr.slot();
             } else {
