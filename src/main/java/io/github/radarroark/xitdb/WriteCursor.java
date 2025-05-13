@@ -50,11 +50,10 @@ public class WriteCursor extends ReadCursor {
 
     public Writer writer() throws IOException {
         var writer = this.db.core.writer();
-        this.db.core.seek(this.db.core.length());
         var ptrPos = this.db.core.length();
+        this.db.core.seek(ptrPos);
         writer.writeLong(0);
         var startPosition = this.db.core.length();
-
         return new Writer(this, 0, new Slot(ptrPos, Tag.BYTES), startPosition, 0);
     }
 
@@ -90,8 +89,8 @@ public class WriteCursor extends ReadCursor {
 
             if (this.formatTag != null) {
                 this.slot = this.slot.withFull(true); // byte arrays with format tags must have this set to true
-                this.parent.db.core.seek(this.parent.db.core.length());
                 var formatTagPos = this.parent.db.core.length();
+                this.parent.db.core.seek(formatTagPos);
                 if (this.startPosition + this.size != formatTagPos) throw new Database.UnexpectedWriterPositionException();
                 writer.write(this.formatTag);
             }

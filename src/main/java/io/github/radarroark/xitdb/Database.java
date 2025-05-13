@@ -400,8 +400,8 @@ public class Database {
                         case Tag.NONE -> {
                             // if slot was empty, insert the new list
                             var writer = this.core.writer();
-                            this.core.seek(this.core.length());
                             var arrayListStart = this.core.length();
+                            this.core.seek(arrayListStart);
                             var arrayListPtr = arrayListStart + ArrayListHeader.length;
                             writer.write(new ArrayListHeader(
                                 arrayListPtr,
@@ -432,8 +432,8 @@ public class Database {
                                     var arrayListIndexBlock = new byte[INDEX_BLOCK_SIZE];
                                     reader.readFully(arrayListIndexBlock);
                                     // copy to the end
-                                    this.core.seek(this.core.length());
                                     arrayListStart = this.core.length();
+                                    this.core.seek(arrayListStart);
                                     var nextArrayListPtr = arrayListStart + ArrayListHeader.length;
                                     header = header.withPtr(nextArrayListPtr);
                                     writer.write(header.toBytes());
@@ -500,7 +500,6 @@ public class Database {
 
                     var writer = this.core.writer();
                     if (isTopLevel) {
-                        this.core.seek(this.core.length());
                         var fileSize = this.core.length();
                         var header = new TopLevelArrayListHeader(fileSize, appendResult.header);
 
@@ -552,8 +551,8 @@ public class Database {
                         case NONE -> {
                             // if slot was empty, insert the new list
                             var writer = this.core.writer();
-                            this.core.seek(this.core.length());
                             var arrayListStart = this.core.length();
+                            this.core.seek(arrayListStart);
                             var arrayListPtr = arrayListStart + LinkedArrayListHeader.length;
                             writer.write(new LinkedArrayListHeader(
                                 (byte)0,
@@ -585,8 +584,8 @@ public class Database {
                                     var arrayListIndexBlock = new byte[LINKED_ARRAY_LIST_INDEX_BLOCK_SIZE];
                                     reader.readFully(arrayListIndexBlock);
                                     // copy to the end
-                                    this.core.seek(this.core.length());
                                     arrayListStart = this.core.length();
+                                    this.core.seek(arrayListStart);
                                     var nextArrayListPtr = arrayListStart + LinkedArrayListHeader.length;
                                     header = header.withPtr(nextArrayListPtr);
                                     writer.write(header.toBytes());
@@ -823,8 +822,8 @@ public class Database {
                         case NONE -> {
                             // if slot was empty, insert the new map
                             var writer = this.core.writer();
-                            this.core.seek(this.core.length());
                             var mapStart = this.core.length();
+                            this.core.seek(mapStart);
                             writer.write(new byte[INDEX_BLOCK_SIZE]);
                             // make slot point to map
                             var nextSlotPr = new SlotPointer(position, new Slot(mapStart, Tag.HASH_MAP));
@@ -846,8 +845,8 @@ public class Database {
                                     var mapIndexBlock = new byte[INDEX_BLOCK_SIZE];
                                     reader.readFully(mapIndexBlock);
                                     // copy to the end
-                                    this.core.seek(this.core.length());
                                     mapStart = this.core.length();
+                                    this.core.seek(mapStart);
                                     writer.write(mapIndexBlock);
                                 }
                             } else if (this.header.tag == Tag.ARRAY_LIST) {
@@ -998,10 +997,9 @@ public class Database {
                 switch (writeMode) {
                     case READ_ONLY -> throw new KeyNotFoundException();
                     case READ_WRITE -> {
-                        this.core.seek(this.core.length());
-
                         // write hash and key/val slots
                         var hashPos = this.core.length();
+                        this.core.seek(hashPos);
                         var keySlotPos = hashPos + this.header.hashSize();
                         var valueSlotPos = keySlotPos + Slot.length;
                         var kvPair = new KeyValuePair(new Slot(), new Slot(), keyHash);
@@ -1031,8 +1029,8 @@ public class Database {
                             var indexBlock = new byte[INDEX_BLOCK_SIZE];
                             reader.readFully(indexBlock);
                             // copy it to the end
-                            this.core.seek(this.core.length());
                             nextPtr = this.core.length();
+                            this.core.seek(nextPtr);
                             writer.write(indexBlock);
                             // make slot point to block
                             this.core.seek(slotPos);
@@ -1054,10 +1052,9 @@ public class Database {
                     if (writeMode == WriteMode.READ_WRITE && !isTopLevel) {
                         if (this.txStart != null) {
                             if (ptr < this.txStart) {
-                                this.core.seek(this.core.length());
-
                                 // write hash and key/val slots
                                 var hashPos = this.core.length();
+                                this.core.seek(hashPos);
                                 var keySlotPos = hashPos + this.header.hashSize();
                                 var valueSlotPos = keySlotPos + Slot.length;
                                 writer.write(kvPair.toBytes());
@@ -1094,8 +1091,8 @@ public class Database {
                                 throw new KeyOffsetExceededException();
                             }
                             var nextI = new BigInteger(kvPair.hash()).shiftRight((keyOffset + 1) * BIT_COUNT).and(BIG_MASK).intValueExact();
-                            this.core.seek(this.core.length());
                             var nextIndexPos = this.core.length();
+                            this.core.seek(nextIndexPos);
                             writer.write(new byte[INDEX_BLOCK_SIZE]);
                             this.core.seek(nextIndexPos + (Slot.length * nextI));
                             writer.write(slot.toBytes());
@@ -1200,8 +1197,8 @@ public class Database {
             if (this.txStart != null) {
                 if (indexPos < this.txStart) {
                     // copy index block to the end
-                    this.core.seek(this.core.length());
                     var nextIndexPos = this.core.length();
+                    this.core.seek(nextIndexPos);
                     writer.write(indexBlock);
                     // update the slot
                     var nextSlotPos = nextIndexPos + (Slot.length * i);
@@ -1235,8 +1232,8 @@ public class Database {
 
         if (prevShift != nextShift) {
             // root overflow
-            this.core.seek(this.core.length());
             var nextIndexPos = this.core.length();
+            this.core.seek(nextIndexPos);
             writer.write(new byte[INDEX_BLOCK_SIZE]);
             this.core.seek(nextIndexPos);
             writer.write(new Slot(indexPos, Tag.INDEX).toBytes());
@@ -1269,13 +1266,12 @@ public class Database {
                     case READ_ONLY -> throw new KeyNotFoundException();
                     case READ_WRITE -> {
                         var writer = this.core.writer();
-                        this.core.seek(this.core.length());
                         var nextIndexPos = this.core.length();
+                        this.core.seek(nextIndexPos);
                         writer.write(new byte[INDEX_BLOCK_SIZE]);
                         // if top level array list, update the file size in the list
                         // header to prevent truncation from destroying this block
                         if (isTopLevel) {
-                            this.core.seek(this.core.length());
                             var fileSize = this.core.length();
                             this.core.seek(DATABASE_START + ArrayListHeader.length);
                             writer.writeLong(fileSize);
@@ -1298,8 +1294,8 @@ public class Database {
                             reader.readFully(indexBlock);
                             // copy it to the end
                             var writer = this.core.writer();
-                            this.core.seek(this.core.length());
                             nextPtr = this.core.length();
+                            this.core.seek(nextPtr);
                             writer.write(indexBlock);
                             // make slot point to block
                             this.core.seek(slotPos);
@@ -1360,8 +1356,8 @@ public class Database {
             slotPtr = readLinkedArrayListSlot(ptr, key, shift, writeMode, isTopLevel);
         } catch (NoAvailableSlotsException e) {
             // root overflow
-            this.core.seek(this.core.length());
             var nextPtr = this.core.length();
+            this.core.seek(nextPtr);
             writer.write(new byte[LINKED_ARRAY_LIST_INDEX_BLOCK_SIZE]);
             this.core.seek(nextPtr);
             writer.write(new LinkedArrayListSlot(header.size, new Slot(ptr, Tag.INDEX, true)).toBytes());
@@ -1489,8 +1485,8 @@ public class Database {
                 switch (writeMode) {
                     case READ_ONLY -> throw new KeyNotFoundException();
                     case READ_WRITE -> {
-                        this.core.seek(this.core.length());
                         var nextIndexPos = this.core.length();
+                        this.core.seek(nextIndexPos);
                         writer.write(new byte[LINKED_ARRAY_LIST_INDEX_BLOCK_SIZE]);
 
                         var nextSlotPtr = readLinkedArrayListSlot(nextIndexPos, nextKey, (byte) (shift - 1), writeMode, isTopLevel);
@@ -1513,8 +1509,8 @@ public class Database {
                             var indexBlock = new byte[LINKED_ARRAY_LIST_INDEX_BLOCK_SIZE];
                             reader.readFully(indexBlock);
                             // copy it to the end
-                            this.core.seek(this.core.length());
                             nextPtr = this.core.length();
+                            this.core.seek(nextPtr);
                             writer.write(indexBlock);
                         }
                     } else if (this.header.tag() == Tag.ARRAY_LIST) {
