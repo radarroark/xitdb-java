@@ -273,6 +273,7 @@ public class Database {
     public static class ExpectedRootNodeException extends DatabaseException {}
     public static class InvalidFormatTagSizeException extends DatabaseException {}
     public static class UnexpectedWriterPositionException extends DatabaseException {}
+    public static class MaxShiftExceededException extends DatabaseException {}
 
     // init
 
@@ -1882,6 +1883,7 @@ public class Database {
                     writer.write(blockSlot.toBytes());
                 }
 
+                if (nextShift == 0b0011_1111) throw new MaxShiftExceededException();
                 nextShift += 1;
 
                 rootPtr = newPtr;
