@@ -121,7 +121,7 @@ public class Database {
             var buffer = ByteBuffer.wrap(bytes);
             var size = checkLong(buffer.getLong());
             var ptr = checkLong(buffer.getLong());
-            var shift = (byte) (buffer.get() & 0b1100_1111);
+            var shift = (byte) (buffer.get() & 0b0011_1111);
             return new LinkedArrayListHeader(shift, ptr, size);
         }
 
