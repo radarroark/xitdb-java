@@ -159,6 +159,7 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
         int pos = this.position.get();
         int bytesToSkip = Math.min(n, this.count - pos);
         pos += bytesToSkip;
+        this.position.set(pos);
         return bytesToSkip;
     }
 
