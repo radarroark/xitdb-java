@@ -11,8 +11,12 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
     ThreadLocal<Integer> position;
 
     public RandomAccessMemory() {
-        this.position = new ThreadLocal<>();
-        this.position.set(0);
+        this.position = new ThreadLocal<>() {
+            @Override
+            protected Integer initialValue() {
+                return 0;
+            }
+        };
     }
 
     @Override

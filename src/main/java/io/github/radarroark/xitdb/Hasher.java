@@ -6,17 +6,21 @@ import java.security.MessageDigest;
 
 public record Hasher(ThreadLocal<MessageDigest> md, int id) {
     public Hasher(MessageDigest md) {
-        this(wrapMessageDigest(md), 0);
+        this(new ThreadLocal<>() {
+            @Override
+            protected MessageDigest initialValue() {
+                return md;
+            }
+        }, 0);
     }
 
     public Hasher(MessageDigest md, int id) {
-        this(wrapMessageDigest(md), id);
-    }
-
-    private static ThreadLocal<MessageDigest> wrapMessageDigest(MessageDigest md) {
-        var tl = new ThreadLocal<MessageDigest>();
-        tl.set(md);
-        return tl;
+        this(new ThreadLocal<>() {
+            @Override
+            protected MessageDigest initialValue() {
+                return md;
+            }
+        }, id);
     }
 
     public byte[] digest(byte[] input) {

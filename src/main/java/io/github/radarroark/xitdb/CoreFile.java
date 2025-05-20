@@ -9,8 +9,12 @@ public class CoreFile implements Core {
     ThreadLocal<RandomAccessFile> file;
 
     public CoreFile(RandomAccessFile file) {
-        this.file = new ThreadLocal<>();
-        this.file.set(file);
+        this.file = new ThreadLocal<>() {
+            @Override
+            protected RandomAccessFile initialValue() {
+                return file;
+            }
+        };
     }
 
     @Override
