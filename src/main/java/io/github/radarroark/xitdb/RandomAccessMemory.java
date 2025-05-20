@@ -8,14 +8,20 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 public class RandomAccessMemory extends ByteArrayOutputStream implements DataOutput, DataInput {
-    int position = 0;
+    ThreadLocal<Integer> position;
+
+    public RandomAccessMemory() {
+        this.position = new ThreadLocal<>();
+        this.position.set(0);
+    }
 
     @Override
     public void write(byte[] buffer) throws IOException {
-        if (this.position < this.count) {
-            int bytesBeforeEnd = Math.min(buffer.length, this.count - this.position);
+        int pos = this.position.get();
+        if (pos < this.count) {
+            int bytesBeforeEnd = Math.min(buffer.length, this.count - pos);
             for (int i = 0; i < bytesBeforeEnd; i++) {
-                this.buf[this.position + i] = buffer[i];
+                this.buf[pos + i] = buffer[i];
             }
 
             if (bytesBeforeEnd < buffer.length) {
@@ -26,20 +32,20 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
             super.write(buffer);
         }
 
-        this.position += buffer.length;
+        this.position.set(pos + buffer.length);
     }
 
     @Override
     public void reset() {
         super.reset();
-        this.position = 0;
+        this.position.set(0);
     }
 
     public void seek(int pos) {
         if (pos > this.count) {
-            this.position = this.count;
+            this.position.set(this.count);
         } else {
-            this.position = pos;
+            this.position.set(pos);
         }
     }
 
@@ -49,7 +55,7 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
         } else {
             if (len > size()) throw new IllegalArgumentException();
             var bytes = toByteArray();
-            var originalPos = this.position;
+            var originalPos = this.position.get();
             reset();
             write(Arrays.copyOfRange(bytes, 0, len));
             seek(originalPos);
@@ -134,23 +140,25 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
 
     @Override
     public void readFully(byte[] b, int off, int len) throws IOException {
+        int pos = this.position.get();
         int size = len - off;
 
-        if (this.position + size > this.count) {
+        if (pos + size > this.count) {
             throw new IOException("End of stream");
         }
 
         for (int i = 0; i < size; i++) {
-            b[off + i] = this.buf[this.position + i];
+            b[off + i] = this.buf[pos + i];
         }
 
-        this.position += size;
+        this.position.set(pos + size);
     }
 
     @Override
     public int skipBytes(int n) throws IOException {
-        int bytesToSkip = Math.min(n, this.count - this.position);
-        this.position += bytesToSkip;
+        int pos = this.position.get();
+        int bytesToSkip = Math.min(n, this.count - pos);
+        pos += bytesToSkip;
         return bytesToSkip;
     }
 
