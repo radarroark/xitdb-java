@@ -86,10 +86,12 @@ public class WriteHashMap extends ReadHashMap {
     }
 
     public void putKey(byte[] hash, Database.WriteableData data) throws Exception {
-        ((WriteCursor)this.cursor).writePath(new Database.PathPart[]{
+        var cursor = ((WriteCursor)this.cursor).writePath(new Database.PathPart[]{
             new Database.HashMapGet(new Database.HashMapGetKey(hash)),
-            new Database.WriteData(data)
         });
+        // keys are only written if empty, because their value should always
+        // be the same at a given hash.
+        cursor.writeIfEmpty(data);
     }
 
     public WriteCursor putKeyCursor(byte[] hash) throws Exception {
