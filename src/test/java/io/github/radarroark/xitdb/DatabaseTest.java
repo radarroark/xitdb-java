@@ -486,7 +486,7 @@ class DatabaseTest {
                     long n = i * 2;
                     values.add(n);
                     cursor.writePath(new Database.PathPart[]{
-                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes()))),
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even".getBytes()))),
                         new Database.LinkedArrayListInit(),
                         new Database.LinkedArrayListAppend(),
                         new Database.WriteData(new Database.Uint(n))
@@ -495,10 +495,10 @@ class DatabaseTest {
 
                 // slice list
                 var evenListCursor = cursor.readPath(new Database.PathPart[]{
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes())))
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even".getBytes())))
                 });
                 var evenListSliceCursor = cursor.writePath(new Database.PathPart[]{
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-slice".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even-slice".getBytes()))),
                     new Database.WriteData(evenListCursor.slotPtr.slot()),
                     new Database.LinkedArrayListInit(),
                     new Database.LinkedArrayListSlice(sliceOffset, sliceSize)
@@ -508,7 +508,7 @@ class DatabaseTest {
                 for (int i = 0; i < sliceSize; i++) {
                     var val = values.get((int) sliceOffset + i);
                     var n = cursor.readPath(new Database.PathPart[]{
-                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-slice".getBytes()))),
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even-slice".getBytes()))),
                         new Database.LinkedArrayListGet(i)
                     }).slotPtr.slot().value();
                     assertEquals(val, n);
@@ -528,13 +528,13 @@ class DatabaseTest {
 
                 // there are no extra items
                 assertEquals(null, cursor.readPath(new Database.PathPart[]{
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-slice".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even-slice".getBytes()))),
                     new Database.LinkedArrayListGet(sliceSize)
                 }));
 
                 // concat the slice with itself
                 cursor.writePath(new Database.PathPart[]{
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("combo".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("combo".getBytes()))),
                     new Database.WriteData(evenListSliceCursor.slotPtr.slot()),
                     new Database.LinkedArrayListInit(),
                     new Database.LinkedArrayListConcat(evenListSliceCursor.slotPtr.slot())
@@ -546,7 +546,7 @@ class DatabaseTest {
                 comboValues.addAll(values.subList((int) sliceOffset, (int) (sliceOffset + sliceSize)));
                 for (int i = 0; i < comboValues.size(); i++) {
                     var n = cursor.readPath(new Database.PathPart[]{
-                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("combo".getBytes()))),
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("combo".getBytes()))),
                         new Database.LinkedArrayListGet(i)
                     }).slotPtr.slot().value();
                     assertEquals(comboValues.get(i), n);
@@ -554,7 +554,7 @@ class DatabaseTest {
 
                 // append to the slice
                 cursor.writePath(new Database.PathPart[]{
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-slice".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even-slice".getBytes()))),
                     new Database.LinkedArrayListInit(),
                     new Database.LinkedArrayListAppend(),
                     new Database.WriteData(new Database.Uint(3))
@@ -562,7 +562,7 @@ class DatabaseTest {
 
                 // read the new value from the slice
                 assertEquals(3, cursor.readPath(new Database.PathPart[]{
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-slice".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even-slice".getBytes()))),
                     new Database.LinkedArrayListGet(-1)
                 }).slotPtr.slot().value());
             })
@@ -584,14 +584,14 @@ class DatabaseTest {
             new Database.Context((cursor) -> {
                 // create even list
                 cursor.writePath(new Database.PathPart[]{
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even".getBytes()))),
                     new Database.LinkedArrayListInit()
                 });
                 for (int i = 0; i < listASize; i++) {
                     long n = i * 2;
                     values.add(n);
                     cursor.writePath(new Database.PathPart[]{
-                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes()))),
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even".getBytes()))),
                         new Database.LinkedArrayListInit(),
                         new Database.LinkedArrayListAppend(),
                         new Database.WriteData(new Database.Uint(n))
@@ -600,14 +600,14 @@ class DatabaseTest {
 
                 // create odd list
                 cursor.writePath(new Database.PathPart[]{
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("odd".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("odd".getBytes()))),
                     new Database.LinkedArrayListInit()
                 });
                 for (int i = 0; i < listBSize; i++) {
                     long n = (i * 2) + 1;
                     values.add(n);
                     cursor.writePath(new Database.PathPart[]{
-                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("odd".getBytes()))),
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("odd".getBytes()))),
                         new Database.LinkedArrayListInit(),
                         new Database.LinkedArrayListAppend(),
                         new Database.WriteData(new Database.Uint(n))
@@ -624,17 +624,17 @@ class DatabaseTest {
             new Database.Context((cursor) -> {
                 // get the even list
                 var evenListCursor = cursor.readPath(new Database.PathPart[]{
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes())))
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even".getBytes())))
                 });
 
                 // get the odd list
                 var oddListCursor = cursor.readPath(new Database.PathPart[]{
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("odd".getBytes())))
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("odd".getBytes())))
                 });
 
                 // concat the lists
                 var comboListCursor = cursor.writePath(new Database.PathPart[]{
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("combo".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("combo".getBytes()))),
                     new Database.WriteData(evenListCursor.slotPtr.slot()),
                     new Database.LinkedArrayListInit(),
                     new Database.LinkedArrayListConcat(oddListCursor.slotPtr.slot())
@@ -643,7 +643,7 @@ class DatabaseTest {
                 // check all values in the new list
                 for (int i = 0; i < values.size(); i++) {
                     var n = cursor.readPath(new Database.PathPart[]{
-                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("combo".getBytes()))),
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("combo".getBytes()))),
                         new Database.LinkedArrayListGet(i)
                     }).slotPtr.slot().value();
                     assertEquals(values.get(i), n);
@@ -663,7 +663,7 @@ class DatabaseTest {
 
                 // there are no extra items
                 assertEquals(null, cursor.readPath(new Database.PathPart[]{
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("combo".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("combo".getBytes()))),
                     new Database.LinkedArrayListGet(values.size())
                 }));
             })
@@ -693,7 +693,7 @@ class DatabaseTest {
                     long n = i * 2;
                     values.add(n);
                     cursor.writePath(new Database.PathPart[]{
-                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes()))),
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even".getBytes()))),
                         new Database.LinkedArrayListInit(),
                         new Database.LinkedArrayListAppend(),
                         new Database.WriteData(new Database.Uint(n))
@@ -702,10 +702,10 @@ class DatabaseTest {
 
                 // insert into list
                 var evenListCursor = cursor.readPath(new Database.PathPart[]{
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes())))
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even".getBytes())))
                 });
                 var evenListInsertCursor = cursor.writePath(new Database.PathPart[]{
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-insert".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even-insert".getBytes()))),
                     new Database.WriteData(evenListCursor.slotPtr.slot()),
                     new Database.LinkedArrayListInit(),
                 });
@@ -718,7 +718,7 @@ class DatabaseTest {
                 for (int i = 0; i < values.size(); i++) {
                     var val = values.get(i);
                     var n = cursor.readPath(new Database.PathPart[]{
-                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-insert".getBytes()))),
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even-insert".getBytes()))),
                         new Database.LinkedArrayListGet(i)
                     }).slotPtr.slot().value();
                     assertEquals(val, n);
@@ -738,7 +738,7 @@ class DatabaseTest {
 
                 // there are no extra items
                 assertEquals(null, cursor.readPath(new Database.PathPart[]{
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-insert".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even-insert".getBytes()))),
                     new Database.LinkedArrayListGet(values.size())
                 }));
             })
@@ -759,7 +759,7 @@ class DatabaseTest {
 
                 // remove inserted value from the list
                 var evenListInsertCursor = cursor.writePath(new Database.PathPart[]{
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-insert".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even-insert".getBytes()))),
                     new Database.LinkedArrayListRemove(insertIndex),
                 });
 
@@ -767,7 +767,7 @@ class DatabaseTest {
                 for (int i = 0; i < values.size(); i++) {
                     var val = values.get(i);
                     var n = cursor.readPath(new Database.PathPart[]{
-                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-insert".getBytes()))),
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even-insert".getBytes()))),
                         new Database.LinkedArrayListGet(i)
                     }).slotPtr.slot().value();
                     assertEquals(val, n);
@@ -787,7 +787,7 @@ class DatabaseTest {
 
                 // there are no extra items
                 assertEquals(null, cursor.readPath(new Database.PathPart[]{
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even-insert".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even-insert".getBytes()))),
                     new Database.LinkedArrayListGet(values.size())
                 }));
             })
@@ -840,7 +840,7 @@ class DatabaseTest {
             var rootCursor = db.rootCursor();
 
             // write foo -> bar with a writer
-            var fooKey = db.md.digest("foo".getBytes());
+            var fooKey = db.hasher.digest("foo".getBytes());
             rootCursor.writePath(new Database.PathPart[]{
                 new Database.ArrayListInit(),
                 new Database.ArrayListAppend(),
@@ -977,7 +977,7 @@ class DatabaseTest {
             }
 
             // write bar -> longstring
-            var barKey = db.md.digest("bar".getBytes());
+            var barKey = db.hasher.digest("bar".getBytes());
             {
                 var barCursor = rootCursor.writePath(new Database.PathPart[]{
                     new Database.ArrayListInit(),
@@ -1191,14 +1191,14 @@ class DatabaseTest {
             assertEquals("baz", new String(bazValue));
 
             // key not found
-            var notFoundKey = db.md.digest("this doesn't exist".getBytes());
+            var notFoundKey = db.hasher.digest("this doesn't exist".getBytes());
             assertEquals(null, rootCursor.readPath(new Database.PathPart[]{
                 new Database.ArrayListGet(-2),
                 new Database.HashMapGet(new Database.HashMapGetValue(notFoundKey))
             }));
 
             // write key that conflicts with foo the first two bytes
-            var smallConflictKey = db.md.digest("small conflict".getBytes());
+            var smallConflictKey = db.hasher.digest("small conflict".getBytes());
             smallConflictKey[smallConflictKey.length-1] = fooKey[fooKey.length-1];
             smallConflictKey[smallConflictKey.length-2] = fooKey[fooKey.length-2];
             rootCursor.writePath(new Database.PathPart[]{
@@ -1211,7 +1211,7 @@ class DatabaseTest {
             });
 
             // write key that conflicts with foo the first four bytes
-            var conflictKey = db.md.digest("conflict".getBytes());
+            var conflictKey = db.hasher.digest("conflict".getBytes());
             conflictKey[conflictKey.length-1] = fooKey[fooKey.length-1];
             conflictKey[conflictKey.length-2] = fooKey[fooKey.length-2];
             conflictKey[conflictKey.length-3] = fooKey[fooKey.length-3];
@@ -1446,7 +1446,7 @@ class DatabaseTest {
                 new Database.ArrayListAppend(),
                 new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                 new Database.HashMapInit(),
-                new Database.HashMapRemove(db.md.digest("doesn't exist".getBytes()))
+                new Database.HashMapRemove(db.hasher.digest("doesn't exist".getBytes()))
             }));
 
             // make sure foo doesn't exist anymore
@@ -1463,7 +1463,7 @@ class DatabaseTest {
                     new Database.ArrayListAppend(),
                     new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                     new Database.HashMapInit(),
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("fruits".getBytes()))),
                     new Database.ArrayListInit(),
                     new Database.ArrayListAppend(),
                     new Database.WriteData(new Database.Bytes("apple"))
@@ -1472,7 +1472,7 @@ class DatabaseTest {
                 // read apple
                 var appleCursor = rootCursor.readPath(new Database.PathPart[]{
                     new Database.ArrayListGet(-1),
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("fruits".getBytes()))),
                     new Database.ArrayListGet(-1),
                 });
                 var appleValue = appleCursor.readBytes(MAX_READ_BYTES);
@@ -1484,7 +1484,7 @@ class DatabaseTest {
                     new Database.ArrayListAppend(),
                     new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                     new Database.HashMapInit(),
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("fruits".getBytes()))),
                     new Database.ArrayListInit(),
                     new Database.ArrayListAppend(),
                     new Database.WriteData(new Database.Bytes("banana"))
@@ -1493,7 +1493,7 @@ class DatabaseTest {
                 // read banana
                 var bananaCursor = rootCursor.readPath(new Database.PathPart[]{
                     new Database.ArrayListGet(-1),
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("fruits".getBytes()))),
                     new Database.ArrayListGet(-1),
                 });
                 var bananaValue = bananaCursor.readBytes(MAX_READ_BYTES);
@@ -1502,7 +1502,7 @@ class DatabaseTest {
                 // can't read banana in older array_list
                 assertEquals(null, rootCursor.readPath(new Database.PathPart[]{
                     new Database.ArrayListGet(-2),
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("fruits".getBytes()))),
                     new Database.ArrayListGet(1),
                 }));
 
@@ -1512,7 +1512,7 @@ class DatabaseTest {
                     new Database.ArrayListAppend(),
                     new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                     new Database.HashMapInit(),
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("fruits".getBytes()))),
                     new Database.ArrayListInit(),
                     new Database.ArrayListAppend(),
                     new Database.WriteData(new Database.Bytes("pear"))
@@ -1524,7 +1524,7 @@ class DatabaseTest {
                     new Database.ArrayListAppend(),
                     new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                     new Database.HashMapInit(),
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("fruits".getBytes()))),
                     new Database.ArrayListInit(),
                     new Database.ArrayListAppend(),
                     new Database.WriteData(new Database.Bytes("grape"))
@@ -1533,7 +1533,7 @@ class DatabaseTest {
                 // read pear
                 var pearCursor = rootCursor.readPath(new Database.PathPart[]{
                     new Database.ArrayListGet(-1),
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("fruits".getBytes()))),
                     new Database.ArrayListGet(-2),
                 });
                 var pearValue = pearCursor.readBytes(MAX_READ_BYTES);
@@ -1542,7 +1542,7 @@ class DatabaseTest {
                 // read grape
                 var grapeCursor = rootCursor.readPath(new Database.PathPart[]{
                     new Database.ArrayListGet(-1),
-                    new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("fruits".getBytes()))),
+                    new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("fruits".getBytes()))),
                     new Database.ArrayListGet(-1),
                 });
                 var grapeValue = grapeCursor.readBytes(MAX_READ_BYTES);
@@ -1556,7 +1556,7 @@ class DatabaseTest {
             var db = new Database(core, hasher);
             var rootCursor = db.rootCursor();
 
-            var watKey = db.md.digest("wat".getBytes());
+            var watKey = db.hasher.digest("wat".getBytes());
             for (int i = 0; i < Database.SLOT_COUNT + 1; i++) {
                 var value = "wat" + i;
                 rootCursor.writePath(new Database.PathPart[]{
@@ -1830,7 +1830,7 @@ class DatabaseTest {
             // add wats
             for (int i = 0; i < 10; i++) {
                 var value = "wat" + i;
-                var watKey = db.md.digest(value.getBytes());
+                var watKey = db.hasher.digest(value.getBytes());
                 rootCursor.writePath(new Database.PathPart[]{
                     new Database.ArrayListInit(),
                     new Database.ArrayListAppend(),
@@ -1849,7 +1849,7 @@ class DatabaseTest {
             }
 
             // add foo
-            var fooKey = db.md.digest("foo".getBytes());
+            var fooKey = db.hasher.digest("foo".getBytes());
             rootCursor.writePath(new Database.PathPart[]{
                 new Database.ArrayListInit(),
                 new Database.ArrayListAppend(),
@@ -1873,7 +1873,7 @@ class DatabaseTest {
                 new Database.ArrayListAppend(),
                 new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                 new Database.HashMapInit(),
-                new Database.HashMapRemove(db.md.digest("wat0".getBytes()))
+                new Database.HashMapRemove(db.hasher.digest("wat0".getBytes()))
             });
 
             // iterate over hash_map
@@ -1892,7 +1892,7 @@ class DatabaseTest {
                         assertEquals(42, kvPair.valueCursor.slotPtr.slot().value());
                     } else {
                         var value = kvPair.valueCursor.readBytes(MAX_READ_BYTES);
-                        assert(Arrays.equals(kvPair.hash, db.md.digest(value)));
+                        assert(Arrays.equals(kvPair.hash, db.hasher.digest(value)));
                     }
                     i += 1;
                 }
@@ -1964,7 +1964,7 @@ class DatabaseTest {
                         long n = i * 2;
                         values.add(n);
                         cursor.writePath(new Database.PathPart[]{
-                            new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes()))),
+                            new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even".getBytes()))),
                             new Database.LinkedArrayListInit(),
                             new Database.LinkedArrayListAppend(),
                             new Database.WriteData(new Database.Uint(n))
@@ -1973,14 +1973,14 @@ class DatabaseTest {
 
                     // get list slot
                     var evenListCursor = cursor.readPath(new Database.PathPart[]{
-                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes())))
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even".getBytes())))
                     });
                     assertEquals(Database.SLOT_COUNT + 1, evenListCursor.count());
 
                     // check all values in the new slice with an iterator
                     {
                         var innerCursor = cursor.readPath(new Database.PathPart[]{
-                            new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("even".getBytes())))
+                            new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("even".getBytes())))
                         });
                         var iter = innerCursor.iterator();
                         int i = 0;
@@ -1996,7 +1996,7 @@ class DatabaseTest {
                     // will create a gap, causing a root overflow
                     // before a normal array list would've.
                     var comboListCursor = cursor.writePath(new Database.PathPart[]{
-                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("combo".getBytes()))),
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("combo".getBytes()))),
                         new Database.WriteData(evenListCursor.slotPtr.slot()),
                         new Database.LinkedArrayListInit()
                     });
@@ -2008,21 +2008,21 @@ class DatabaseTest {
 
                     // append to the new list
                     cursor.writePath(new Database.PathPart[]{
-                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("combo".getBytes()))),
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("combo".getBytes()))),
                         new Database.LinkedArrayListAppend(),
                         new Database.WriteData(new Database.Uint(3))
                     });
 
                     // read the new value from the list
                     assertEquals(3, cursor.readPath(new Database.PathPart[]{
-                        new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("combo".getBytes()))),
+                        new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("combo".getBytes()))),
                         new Database.LinkedArrayListGet(-1)
                     }).slotPtr.slot().value());
 
                     // append more to the new list
                     for (int i = 0; i < 500; i++) {
                         cursor.writePath(new Database.PathPart[]{
-                            new Database.HashMapGet(new Database.HashMapGetValue(db.md.digest("combo".getBytes()))),
+                            new Database.HashMapGet(new Database.HashMapGetValue(db.hasher.digest("combo".getBytes()))),
                             new Database.LinkedArrayListAppend(),
                             new Database.WriteData(new Database.Uint(1))
                         });
