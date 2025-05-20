@@ -6,44 +6,45 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 
 public class CoreFile implements Core {
-    RandomAccessFile file;
+    ThreadLocal<RandomAccessFile> file;
 
     public CoreFile(RandomAccessFile file) {
-        this.file = file;
+        this.file = new ThreadLocal<>();
+        this.file.set(file);
     }
 
     @Override
     public DataInput reader() {
-        return this.file;
+        return this.file.get();
     }
 
     @Override
     public DataOutput writer() {
-        return this.file;
+        return this.file.get();
     }
 
     @Override
     public long length() throws IOException {
-        return this.file.length();
+        return this.file.get().length();
     }
 
     @Override
     public void seek(long pos) throws IOException {
-        this.file.seek(pos);
+        this.file.get().seek(pos);
     }
 
     @Override
     public long position() throws IOException {
-        return this.file.getFilePointer();
+        return this.file.get().getFilePointer();
     }
 
     @Override
     public void setLength(long len) throws IOException {
-        this.file.setLength(len);
+        this.file.get().setLength(len);
     }
 
     @Override
     public void sync() throws IOException {
-        this.file.getFD().sync();
+        this.file.get().getFD().sync();
     }
 }
