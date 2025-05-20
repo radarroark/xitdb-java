@@ -33,7 +33,7 @@ public class CoreMemory implements Core {
 
     @Override
     public long position() throws IOException {
-        return this.memory.position.get();
+        return this.memory.position;
     }
 
     @Override

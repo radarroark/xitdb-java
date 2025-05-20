@@ -4,31 +4,9 @@ import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 
-public record Hasher(ThreadLocal<MessageDigest> md, int id) {
+public record Hasher(MessageDigest md, int id) {
     public Hasher(MessageDigest md) {
-        this(new ThreadLocal<>() {
-            @Override
-            protected MessageDigest initialValue() {
-                return md;
-            }
-        }, 0);
-    }
-
-    public Hasher(MessageDigest md, int id) {
-        this(new ThreadLocal<>() {
-            @Override
-            protected MessageDigest initialValue() {
-                return md;
-            }
-        }, id);
-    }
-
-    public byte[] digest(byte[] input) {
-        return this.md().get().digest(input);
-    }
-
-    public MessageDigest getMD() {
-        return this.md.get();
+        this(md, 0);
     }
 
     public static int stringToId(String hashIdName) throws UnsupportedEncodingException {

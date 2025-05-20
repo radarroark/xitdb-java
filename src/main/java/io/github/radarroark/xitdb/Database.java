@@ -4,12 +4,13 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 
 public class Database {
     public Core core;
-    public Hasher hasher;
+    public MessageDigest md;
     public Header header;
     public Long txStart;
 
@@ -278,7 +279,7 @@ public class Database {
 
     public Database(Core core, Hasher hasher) throws IOException {
         this.core = core;
-        this.hasher = hasher;
+        this.md = hasher.md();
 
         core.seek(0);
         if (core.length() == 0) {
@@ -286,7 +287,7 @@ public class Database {
         } else {
             this.header = Header.read(core);
             this.header.validate();
-            if (this.header.hashSize() != hasher.getMD().getDigestLength()) {
+            if (this.header.hashSize() != hasher.md().getDigestLength()) {
                 throw new InvalidHashSizeException();
             }
             truncate();
@@ -302,7 +303,7 @@ public class Database {
     // private
 
     private Header writeHeader(Hasher hasher) throws IOException {
-        var header = new Header(hasher.id(), (short)hasher.getMD().getDigestLength(), VERSION, Tag.NONE, MAGIC_NUMBER);
+        var header = new Header(hasher.id(), (short)hasher.md().getDigestLength(), VERSION, Tag.NONE, MAGIC_NUMBER);
         var writer = this.core.writer();
         writer.write(header.toBytes());
         return header;

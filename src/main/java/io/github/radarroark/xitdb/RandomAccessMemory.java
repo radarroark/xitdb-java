@@ -8,24 +8,14 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 public class RandomAccessMemory extends ByteArrayOutputStream implements DataOutput, DataInput {
-    ThreadLocal<Integer> position;
-
-    public RandomAccessMemory() {
-        this.position = new ThreadLocal<>() {
-            @Override
-            protected Integer initialValue() {
-                return 0;
-            }
-        };
-    }
+    int position = 0;
 
     @Override
     public void write(byte[] buffer) throws IOException {
-        int pos = this.position.get();
-        if (pos < this.count) {
-            int bytesBeforeEnd = Math.min(buffer.length, this.count - pos);
+        if (this.position < this.count) {
+            int bytesBeforeEnd = Math.min(buffer.length, this.count - this.position);
             for (int i = 0; i < bytesBeforeEnd; i++) {
-                this.buf[pos + i] = buffer[i];
+                this.buf[this.position + i] = buffer[i];
             }
 
             if (bytesBeforeEnd < buffer.length) {
@@ -36,20 +26,20 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
             super.write(buffer);
         }
 
-        this.position.set(pos + buffer.length);
+        this.position += buffer.length;
     }
 
     @Override
     public void reset() {
         super.reset();
-        this.position.set(0);
+        this.position = 0;
     }
 
     public void seek(int pos) {
         if (pos > this.count) {
-            this.position.set(this.count);
+            this.position = this.count;
         } else {
-            this.position.set(pos);
+            this.position = pos;
         }
     }
 
@@ -59,7 +49,7 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
         } else {
             if (len > size()) throw new IllegalArgumentException();
             var bytes = toByteArray();
-            var originalPos = this.position.get();
+            var originalPos = this.position;
             reset();
             write(Arrays.copyOfRange(bytes, 0, len));
             seek(originalPos);
@@ -144,26 +134,23 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
 
     @Override
     public void readFully(byte[] b, int off, int len) throws IOException {
-        int pos = this.position.get();
         int size = len - off;
 
-        if (pos + size > this.count) {
+        if (this.position + size > this.count) {
             throw new IOException("End of stream");
         }
 
         for (int i = 0; i < size; i++) {
-            b[off + i] = this.buf[pos + i];
+            b[off + i] = this.buf[this.position + i];
         }
 
-        this.position.set(pos + size);
+        this.position += size;
     }
 
     @Override
     public int skipBytes(int n) throws IOException {
-        int pos = this.position.get();
-        int bytesToSkip = Math.min(n, this.count - pos);
-        pos += bytesToSkip;
-        this.position.set(pos);
+        int bytesToSkip = Math.min(n, this.count - this.position);
+        this.position += bytesToSkip;
         return bytesToSkip;
     }
 
