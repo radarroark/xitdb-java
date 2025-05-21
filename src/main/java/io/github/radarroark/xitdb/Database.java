@@ -1844,11 +1844,37 @@ public class Database {
             // clear the next slots
             nextSlots = new LinkedArrayListSlot[]{ null, null };
 
+            // put the slots to write in separate blocks.
+            // if there are enough slots to fill two blocks,
+            // we try to fill the right block first. this means
+            // that gaps will tend to be in the left block.
+            // this is better because when we prepend, the left
+            // list is going to be empty, and this will allow the
+            // gaps to exist along the left edge rather than
+            // accumulating inside the list, where it will
+            // eventually fill up and MaxShiftExceeded will happen.
+            var blocks = new LinkedArrayListSlot[2][SLOT_COUNT];
+            if (slotI > SLOT_COUNT) {
+                populateArray(blocks[0]);
+                for (int j = 0; j < slotI - SLOT_COUNT; j++) {
+                    blocks[0][j] = slotsToWrite[j];
+                }
+                populateArray(blocks[1]);
+                for (int j = 0; j < SLOT_COUNT; j++) {
+                    blocks[1][j] = slotsToWrite[j + (slotI - SLOT_COUNT)];
+                }
+            } else {
+                populateArray(blocks[0]);
+                for (int j = 0; j < slotI; j++) {
+                    blocks[0][j] = slotsToWrite[j];
+                }
+                populateArray(blocks[1]);
+            }
+
             // write the block(s)
             this.core.seek(this.core.length());
-            for (int blockI = 0; blockI < 2; blockI++) {
-                var start = blockI * SLOT_COUNT;
-                var block = Arrays.copyOfRange(slotsToWrite, start, start + SLOT_COUNT);
+            for (int blockI = 0; blockI < blocks.length; blockI++) {
+                var block = blocks[blockI];
 
                 // this block is empty so don't bother writing it
                 if (block[0].slot().empty()) {
