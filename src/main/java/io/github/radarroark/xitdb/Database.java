@@ -1844,31 +1844,38 @@ public class Database {
             // clear the next slots
             nextSlots = new LinkedArrayListSlot[]{ null, null };
 
-            // put the slots to write in separate blocks.
-            // if there are enough slots to fill two blocks,
-            // we try to fill the right block first. this means
-            // that gaps will tend to be in the left block.
-            // this is better because when we prepend, the left
-            // list is going to be empty, and this will allow the
-            // gaps to exist along the left edge rather than
-            // accumulating inside the list, where it will
-            // eventually fill up and MaxShiftExceeded will happen.
+            // put the slots to write in separate blocks
             var blocks = new LinkedArrayListSlot[2][SLOT_COUNT];
+            populateArray(blocks[0]);
+            populateArray(blocks[1]);
             if (slotI > SLOT_COUNT) {
-                populateArray(blocks[0]);
-                for (int j = 0; j < slotI - SLOT_COUNT; j++) {
-                    blocks[0][j] = slotsToWrite[j];
-                }
-                populateArray(blocks[1]);
-                for (int j = 0; j < SLOT_COUNT; j++) {
-                    blocks[1][j] = slotsToWrite[j + (slotI - SLOT_COUNT)];
+                // if there are enough slots to fill two blocks,
+                // we need to decide which block to leave the gap in.
+                // if the first list is smaller, leave the gap in
+                // the first block. otherwise, leave it in the second.
+                // this will cause the gap to stay near the left or
+                // right edge of the concatenated list. we do this
+                // because if many gaps form inside the list, the
+                // branches will get long and lead to MaxShiftExceeded.
+                if (headerA.size() < headerB.size()) {
+                    for (int j = 0; j < slotI - SLOT_COUNT; j++) {
+                        blocks[0][j] = slotsToWrite[j];
+                    }
+                    for (int j = 0; j < SLOT_COUNT; j++) {
+                        blocks[1][j] = slotsToWrite[j + (slotI - SLOT_COUNT)];
+                    }
+                } else {
+                    for (int j = 0; j < SLOT_COUNT; j++) {
+                        blocks[0][j] = slotsToWrite[j];
+                    }
+                    for (int j = 0; j < slotI - SLOT_COUNT; j++) {
+                        blocks[1][j] = slotsToWrite[j + SLOT_COUNT];
+                    }
                 }
             } else {
-                populateArray(blocks[0]);
                 for (int j = 0; j < slotI; j++) {
                     blocks[0][j] = slotsToWrite[j];
                 }
-                populateArray(blocks[1]);
             }
 
             // write the block(s)

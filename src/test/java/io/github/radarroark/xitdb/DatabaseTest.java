@@ -2061,7 +2061,7 @@ class DatabaseTest {
             }
         }
 
-        // prepend to linked_array_list many times
+        // insert at beginning of linked_array_list many times
         {
             core.setLength(0);
             var db = new Database(core, hasher);
@@ -2083,6 +2083,33 @@ class DatabaseTest {
                     new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
                     new Database.LinkedArrayListInit(),
                     new Database.LinkedArrayListInsert(0),
+                    new Database.WriteData(new Database.Uint(i))
+                });
+            }
+        }
+
+        // insert at end of linked_array_list many times
+        {
+            core.setLength(0);
+            var db = new Database(core, hasher);
+            var rootCursor = db.rootCursor();
+
+            rootCursor.writePath(new Database.PathPart[]{
+                new Database.ArrayListInit(),
+                new Database.ArrayListAppend(),
+                new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                new Database.LinkedArrayListInit(),
+                new Database.LinkedArrayListAppend(),
+                new Database.WriteData(new Database.Uint(42))
+            });
+
+            for (int i = 0; i < 1_000; i++) {
+                rootCursor.writePath(new Database.PathPart[]{
+                    new Database.ArrayListInit(),
+                    new Database.ArrayListAppend(),
+                    new Database.WriteData(rootCursor.readPathSlot(new Database.PathPart[]{new Database.ArrayListGet(-1)})),
+                    new Database.LinkedArrayListInit(),
+                    new Database.LinkedArrayListInsert(i),
                     new Database.WriteData(new Database.Uint(i))
                 });
             }
