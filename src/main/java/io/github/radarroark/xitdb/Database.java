@@ -23,6 +23,7 @@ public class Database {
     public static final BigInteger BIG_MASK = BigInteger.valueOf(MASK);
     public static final int INDEX_BLOCK_SIZE = Slot.length * SLOT_COUNT;
     public static final int LINKED_ARRAY_LIST_INDEX_BLOCK_SIZE = LinkedArrayListSlot.length * SLOT_COUNT;
+    public static final int MAX_BRANCH_LENGTH = 16;
 
     public static record Header (
         int hashId,
@@ -1246,6 +1247,8 @@ public class Database {
     }
 
     private SlotPointer readArrayListSlot(long indexPos, long key, byte shift, WriteMode writeMode, boolean isTopLevel) throws IOException {
+        if (shift == MAX_BRANCH_LENGTH) throw new MaxShiftExceededException();
+
         var reader = this.core.reader();
 
         var i = (key >> (shift * BIT_COUNT)) & MASK;
@@ -1450,6 +1453,8 @@ public class Database {
     }
 
     private LinkedArrayListSlotPointer readLinkedArrayListSlot(long indexPos, long key, byte shift, WriteMode writeMode, boolean isTopLevel) throws IOException {
+        if (shift == MAX_BRANCH_LENGTH) throw new MaxShiftExceededException();
+
         var reader = this.core.reader();
         var writer = this.core.writer();
 
@@ -1883,7 +1888,7 @@ public class Database {
                     writer.write(blockSlot.toBytes());
                 }
 
-                if (nextShift == 0b0011_1111) throw new MaxShiftExceededException();
+                if (nextShift == MAX_BRANCH_LENGTH) throw new MaxShiftExceededException();
                 nextShift += 1;
 
                 rootPtr = newPtr;
