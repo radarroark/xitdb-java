@@ -1247,7 +1247,7 @@ public class Database {
     }
 
     private SlotPointer readArrayListSlot(long indexPos, long key, byte shift, WriteMode writeMode, boolean isTopLevel) throws IOException {
-        if (shift == MAX_BRANCH_LENGTH) throw new MaxShiftExceededException();
+        if (shift >= MAX_BRANCH_LENGTH) throw new MaxShiftExceededException();
 
         var reader = this.core.reader();
 
@@ -1453,7 +1453,7 @@ public class Database {
     }
 
     private LinkedArrayListSlotPointer readLinkedArrayListSlot(long indexPos, long key, byte shift, WriteMode writeMode, boolean isTopLevel) throws IOException {
-        if (shift == MAX_BRANCH_LENGTH) throw new MaxShiftExceededException();
+        if (shift >= MAX_BRANCH_LENGTH) throw new MaxShiftExceededException();
 
         var reader = this.core.reader();
         var writer = this.core.writer();
