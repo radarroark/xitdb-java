@@ -5,7 +5,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 public class CoreMemory implements Core {
-    RandomAccessMemory memory;
+    public RandomAccessMemory memory;
 
     public CoreMemory(RandomAccessMemory memory) {
         this.memory = memory;

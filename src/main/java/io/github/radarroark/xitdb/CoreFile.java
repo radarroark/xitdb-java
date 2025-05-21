@@ -6,7 +6,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 
 public class CoreFile implements Core {
-    RandomAccessFile file;
+    public RandomAccessFile file;
 
     public CoreFile(RandomAccessFile file) {
         this.file = file;
