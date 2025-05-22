@@ -177,72 +177,64 @@ public class RandomAccessBufferedFile implements DataOutput, DataInput, AutoClos
     public void readFully(byte[] b, int off, int len) throws IOException {
         long filePos = this.file.getFilePointer();
         int memPos = this.memory.position.get();
-        flush();
-        this.file.seek(filePos + memPos);
-        this.file.readFully(b, off, len);
+        if (memPos + len <= this.memory.size()) {
+            this.memory.readFully(b, off, len);
+        } else {
+            flush();
+            this.file.seek(filePos + memPos);
+            this.file.readFully(b, off, len);
+        }
     }
 
     @Override
     public int skipBytes(int n) throws IOException {
-        long filePos = this.file.getFilePointer();
-        int memPos = this.memory.position.get();
-        flush();
-        this.file.seek(filePos + memPos);
-        return this.file.skipBytes(n);
+        throw new UnsupportedOperationException("Unimplemented method 'skipBytes'");
     }
 
     @Override
     public boolean readBoolean() throws IOException {
-        long filePos = this.file.getFilePointer();
-        int memPos = this.memory.position.get();
-        flush();
-        this.file.seek(filePos + memPos);
-        return this.file.readBoolean();
+        throw new UnsupportedOperationException("Unimplemented method 'readBoolean'");
     }
 
     @Override
     public byte readByte() throws IOException {
         long filePos = this.file.getFilePointer();
         int memPos = this.memory.position.get();
-        flush();
-        this.file.seek(filePos + memPos);
-        return this.file.readByte();
+        if (memPos + 1 <= this.memory.size()) {
+            return this.memory.readByte();
+        } else {
+            flush();
+            this.file.seek(filePos + memPos);
+            return this.file.readByte();
+        }
     }
 
     @Override
     public int readUnsignedByte() throws IOException {
-        long filePos = this.file.getFilePointer();
-        int memPos = this.memory.position.get();
-        flush();
-        this.file.seek(filePos + memPos);
-        return this.file.readUnsignedByte();
+        throw new UnsupportedOperationException("Unimplemented method 'readUnsignedByte'");
     }
 
     @Override
     public short readShort() throws IOException {
         long filePos = this.file.getFilePointer();
         int memPos = this.memory.position.get();
-        flush();
-        this.file.seek(filePos + memPos);
-        return this.file.readShort();
+        if (memPos + 2 <= this.memory.size()) {
+            return this.memory.readShort();
+        } else {
+            flush();
+            this.file.seek(filePos + memPos);
+            return this.file.readShort();
+        }
     }
 
     @Override
     public int readUnsignedShort() throws IOException {
-        long filePos = this.file.getFilePointer();
-        int memPos = this.memory.position.get();
-        flush();
-        this.file.seek(filePos + memPos);
-        return this.file.readUnsignedShort();
+        throw new UnsupportedOperationException("Unimplemented method 'readUnsignedShort'");
     }
 
     @Override
     public char readChar() throws IOException {
-        long filePos = this.file.getFilePointer();
-        int memPos = this.memory.position.get();
-        flush();
-        this.file.seek(filePos + memPos);
-        return this.file.readChar();
+        throw new UnsupportedOperationException("Unimplemented method 'readChar'");
     }
 
     @Override
@@ -258,27 +250,23 @@ public class RandomAccessBufferedFile implements DataOutput, DataInput, AutoClos
     public long readLong() throws IOException {
         long filePos = this.file.getFilePointer();
         int memPos = this.memory.position.get();
-        flush();
-        this.file.seek(filePos + memPos);
-        return this.file.readLong();
+        if (memPos + 8 <= this.memory.size()) {
+            return this.memory.readLong();
+        } else {
+            flush();
+            this.file.seek(filePos + memPos);
+            return this.file.readLong();
+        }
     }
 
     @Override
     public float readFloat() throws IOException {
-        long filePos = this.file.getFilePointer();
-        int memPos = this.memory.position.get();
-        flush();
-        this.file.seek(filePos + memPos);
-        return this.file.readFloat();
+        throw new UnsupportedOperationException("Unimplemented method 'readFloat'");
     }
 
     @Override
     public double readDouble() throws IOException {
-        long filePos = this.file.getFilePointer();
-        int memPos = this.memory.position.get();
-        flush();
-        this.file.seek(filePos + memPos);
-        return this.file.readDouble();
+        throw new UnsupportedOperationException("Unimplemented method 'readDouble'");
     }
 
     @Override
