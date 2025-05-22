@@ -197,6 +197,91 @@ class DatabaseTest {
         }
     }
 
+    @Test
+    void testMultithreading() throws Exception {
+        var resource = getClass().getClassLoader().getResource("test.db");
+        File file = new File(resource.toURI());
+
+        // to read the db from multiple threads, you must create a ThreadLocal
+        // and override `initialValue` to open the file and return a Database object.
+        // this will ensure that each thread uses a different file handle and
+        // Database object. this will only work with reading...writing to the db
+        // can only happen from a single thread.
+        var db = new ThreadLocal<Database>() {
+            @Override
+            protected Database initialValue() {
+                try {
+                    var raf = new RandomAccessFile(file, "r");
+                    var core = new CoreFile(raf);
+                    var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
+                    return new Database(core, hasher);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+
+        var t1 = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    var history = new ReadArrayList(db.get().rootCursor());
+                    var momentCursor = history.getCursor(0);
+                    var moment = new ReadHashMap(momentCursor);
+                    var fooCursor = moment.getCursor("foo");
+                    var fooValue = fooCursor.readBytes(MAX_READ_BYTES);
+                    assertEquals("foo", new String(fooValue));
+                    // close the db file
+                    ((CoreFile)db.get().core).file.close();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+
+        var t2 = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    var history = new ReadArrayList(db.get().rootCursor());
+                    var momentCursor = history.getCursor(0);
+                    var moment = new ReadHashMap(momentCursor);
+                    var fooCursor = moment.getCursor("foo");
+                    var fooValue = fooCursor.readBytes(MAX_READ_BYTES);
+                    assertEquals("foo", new String(fooValue));
+                    // close the db file
+                    ((CoreFile)db.get().core).file.close();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+
+        // this will move the read position of the db because
+        // we need to navigate to the hash map
+        var history = new ReadArrayList(db.get().rootCursor());
+        var momentCursor = history.getCursor(0);
+        var moment = new ReadHashMap(momentCursor);
+
+        // start the threads. since they are using their own file
+        // handle, the read position changed above won't affect them
+        t1.start();
+        t2.start();
+
+        // this should succeed because the threads started above are
+        // using their own file handle and db object
+        var fooCursor = moment.getCursor("foo");
+        var fooValue = fooCursor.readBytes(MAX_READ_BYTES);
+        assertEquals("foo", new String(fooValue));
+
+        // wait for the threads to finish
+        t1.join();
+        t2.join();
+
+        // close the db file
+        ((CoreFile)db.get().core).file.close();
+    }
+
     void testHighLevelApi(Core core, Hasher hasher, File fileMaybe) throws Exception {
         // init the db
         core.setLength(0);
