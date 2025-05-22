@@ -49,6 +49,13 @@ class DatabaseTest {
             var core = new CoreFile(raf);
             var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
             testLowLevelApi(core, hasher);
+            raf.setLength(0); // clear file content for the next test
+        }
+
+        try (var raf = new RandomAccessBufferedFile(file, "rw", 1024)) {
+            var core = new CoreBufferedFile(raf);
+            var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
+            testLowLevelApi(core, hasher);
         }
     }
 
