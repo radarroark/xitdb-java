@@ -92,3 +92,5 @@ try (var raf = new RandomAccessFile(new File("main.db"), "rw")) {
     assertEquals("apple", new String(appleValue));
 }
 ```
+
+It is possible to read the database from multiple threads without locks, even while writes are happening. This is a big benefit of immutable databases. However, each thread needs to use its own file handle and Database object. You can do this by creating a ThreadLocal. See [the multithreading test](https://github.com/radarroark/xitdb-java/blob/d7cf0869cf0f66eca823051dfbdec0ab5e5a09cb/src/test/java/io/github/radarroark/xitdb/DatabaseTest.java#L201) for an example of this. Keep in mind that writes still need to come from a single thread.
