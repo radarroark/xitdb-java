@@ -32,6 +32,12 @@ class DatabaseTest {
             var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
             testHighLevelApi(core, hasher, file);
         }
+
+        try (var raf = new RandomAccessBufferedFile(file, "rw")) {
+            var core = new CoreBufferedFile(raf);
+            var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
+            testHighLevelApi(core, hasher, file);
+        }
     }
 
     @Test
@@ -49,7 +55,6 @@ class DatabaseTest {
             var core = new CoreFile(raf);
             var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
             testLowLevelApi(core, hasher);
-            raf.setLength(0); // clear file content for the next test
         }
 
         try (var raf = new RandomAccessBufferedFile(file, "rw", 1024)) {
@@ -194,6 +199,7 @@ class DatabaseTest {
 
     void testHighLevelApi(Core core, Hasher hasher, File fileMaybe) throws Exception {
         // init the db
+        core.setLength(0);
         var db = new Database(core, hasher);
 
         {
