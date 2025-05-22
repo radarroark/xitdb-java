@@ -19,32 +19,6 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
         };
     }
 
-    @Override
-    public void write(byte[] buffer) throws IOException {
-        int pos = this.position.get();
-        if (pos < this.count) {
-            int bytesBeforeEnd = Math.min(buffer.length, this.count - pos);
-            for (int i = 0; i < bytesBeforeEnd; i++) {
-                this.buf[pos + i] = buffer[i];
-            }
-
-            if (bytesBeforeEnd < buffer.length) {
-                int bytesAfterEnd = buffer.length - bytesBeforeEnd;
-                super.write(Arrays.copyOfRange(buffer, buffer.length - bytesAfterEnd, buffer.length));
-            }
-        } else {
-            super.write(buffer);
-        }
-
-        this.position.set(pos + buffer.length);
-    }
-
-    @Override
-    public void reset() {
-        super.reset();
-        this.position.set(0);
-    }
-
     public void seek(int pos) {
         if (pos > this.count) {
             this.position.set(this.count);
@@ -66,7 +40,35 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
         }
     }
 
+    // ByteArrayOutputStream
+
+    @Override
+    public void reset() {
+        super.reset();
+        this.position.set(0);
+    }
+
     // DataOutput
+
+    @Override
+    public void write(byte[] buffer) throws IOException {
+        int pos = this.position.get();
+        if (pos < this.count) {
+            int bytesBeforeEnd = Math.min(buffer.length, this.count - pos);
+            for (int i = 0; i < bytesBeforeEnd; i++) {
+                this.buf[pos + i] = buffer[i];
+            }
+
+            if (bytesBeforeEnd < buffer.length) {
+                int bytesAfterEnd = buffer.length - bytesBeforeEnd;
+                super.write(Arrays.copyOfRange(buffer, buffer.length - bytesAfterEnd, buffer.length));
+            }
+        } else {
+            super.write(buffer);
+        }
+
+        this.position.set(pos + buffer.length);
+    }
 
     @Override
     public void writeBoolean(boolean v) throws IOException {
