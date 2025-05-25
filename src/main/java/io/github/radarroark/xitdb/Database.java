@@ -170,7 +170,11 @@ public class Database {
     public static record LinkedArrayListConcat(Slot list) implements PathPart {}
     public static record LinkedArrayListInsert(long index) implements PathPart {}
     public static record LinkedArrayListRemove(long index) implements PathPart {}
-    public static record HashMapInit() implements PathPart {}
+    public static record HashMapInit(boolean counted) implements PathPart {
+        public HashMapInit() {
+            this(false);
+        }
+    }
     public static record HashMapGet(HashMapGetTarget target) implements PathPart {}
     public static record HashMapRemove(byte[] hash) implements PathPart {}
     public static record WriteData(WriteableData data) implements PathPart {}
@@ -798,22 +802,29 @@ public class Database {
                 case HashMapInit hashMapInit -> {
                     if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
 
+                    Tag tag = hashMapInit.counted ? Tag.COUNTED_HASH_MAP : Tag.HASH_MAP;
+
                     if (isTopLevel) {
                         var writer = this.core.writer();
 
                         // if the top level hash map hasn't been initialized
                         if (this.header.tag == Tag.NONE) {
-                            // write the first block
                             this.core.seek(DATABASE_START);
+
+                            if (hashMapInit.counted) {
+                                writer.writeLong(0);
+                            }
+
+                            // write the first block
                             writer.write(new byte[INDEX_BLOCK_SIZE]);
 
                             // update db header
                             this.core.seek(0);
-                            this.header = this.header.withTag(Tag.HASH_MAP);
+                            this.header = this.header.withTag(tag);
                             writer.write(this.header.toBytes());
                         }
 
-                        var nextSlotPtr = slotPtr.withSlot(slotPtr.slot().withTag(Tag.HASH_MAP));
+                        var nextSlotPtr = slotPtr.withSlot(slotPtr.slot().withTag(tag));
                         return readSlotPointer(writeMode, path, pathI + 1, nextSlotPtr);
                     }
 
@@ -826,14 +837,19 @@ public class Database {
                             var writer = this.core.writer();
                             var mapStart = this.core.length();
                             this.core.seek(mapStart);
+                            if (hashMapInit.counted) {
+                                writer.writeLong(0);
+                            }
                             writer.write(new byte[INDEX_BLOCK_SIZE]);
                             // make slot point to map
-                            var nextSlotPr = new SlotPointer(position, new Slot(mapStart, Tag.HASH_MAP));
+                            var nextSlotPr = new SlotPointer(position, new Slot(mapStart, tag));
                             this.core.seek(position);
                             writer.write(nextSlotPr.slot().toBytes());
                             return readSlotPointer(writeMode, path, pathI + 1, nextSlotPr);
                         }
-                        case HASH_MAP -> {
+                        case HASH_MAP, COUNTED_HASH_MAP -> {
+                            if (slotPtr.slot().tag() != tag) throw new UnexpectedTagException();
+
                             var reader = this.core.reader();
                             var writer = this.core.writer();
 
@@ -844,11 +860,13 @@ public class Database {
                                 if (mapStart < this.txStart) {
                                     // read existing block
                                     this.core.seek(mapStart);
+                                    Long mapCountMaybe = hashMapInit.counted ? reader.readLong() : null;
                                     var mapIndexBlock = new byte[INDEX_BLOCK_SIZE];
                                     reader.readFully(mapIndexBlock);
                                     // copy to the end
                                     mapStart = this.core.length();
                                     this.core.seek(mapStart);
+                                    if (mapCountMaybe != null) writer.writeLong(mapCountMaybe);
                                     writer.write(mapIndexBlock);
                                 }
                             } else if (this.header.tag == Tag.ARRAY_LIST) {
@@ -856,7 +874,7 @@ public class Database {
                             }
 
                             // make slot point to map
-                            var nextSlotPtr = new SlotPointer(position, new Slot(mapStart, Tag.HASH_MAP));
+                            var nextSlotPtr = new SlotPointer(position, new Slot(mapStart, tag));
                             this.core.seek(position);
                             writer.write(nextSlotPtr.slot().toBytes());
                             return readSlotPointer(writeMode, path, pathI + 1, nextSlotPtr);
@@ -865,30 +883,59 @@ public class Database {
                     }
                 }
                 case HashMapGet hashMapGet -> {
+                    boolean counted = false;
                     switch (slotPtr.slot().tag()) {
                         case NONE -> throw new KeyNotFoundException();
                         case HASH_MAP -> {}
+                        case COUNTED_HASH_MAP -> counted = true;
                         default -> throw new UnexpectedTagException();
                     }
 
-                    var nextSlotPtr = switch (hashMapGet.target()) {
+                    var res = switch (hashMapGet.target()) {
                         case HashMapGetKVPair kvPairTarget -> readMapSlot(slotPtr.slot().value(), checkHash(kvPairTarget.hash()), (byte)0, writeMode, isTopLevel, hashMapGet.target());
                         case HashMapGetKey keyTarget -> readMapSlot(slotPtr.slot().value(), checkHash(keyTarget.hash()), (byte)0, writeMode, isTopLevel, hashMapGet.target());
                         case HashMapGetValue valueTarget -> readMapSlot(slotPtr.slot().value(), checkHash(valueTarget.hash()), (byte)0, writeMode, isTopLevel, hashMapGet.target());
                     };
 
-                    return readSlotPointer(writeMode, path, pathI + 1, nextSlotPtr);
+                    if (writeMode == WriteMode.READ_WRITE && counted && res.isEmpty()) {
+                        var reader = this.core.reader();
+                        var writer = this.core.writer();
+                        this.core.seek(slotPtr.slot().value());
+                        long mapCount = reader.readLong();
+                        this.core.seek(slotPtr.slot().value());
+                        writer.writeLong(mapCount + 1);
+                    }
+
+                    return readSlotPointer(writeMode, path, pathI + 1, res.slotPtr);
                 }
                 case HashMapRemove hashMapRemove -> {
                     if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
 
+                    boolean counted = false;
                     switch (slotPtr.slot().tag()) {
                         case NONE -> throw new KeyNotFoundException();
                         case HASH_MAP -> {}
+                        case COUNTED_HASH_MAP -> counted = true;
                         default -> throw new UnexpectedTagException();
                     }
 
-                    removeMapSlot(slotPtr.slot().value(), checkHash(hashMapRemove.hash()), (byte)0, isTopLevel);
+                    boolean keyFound = true;
+                    try {
+                        removeMapSlot(slotPtr.slot().value(), checkHash(hashMapRemove.hash()), (byte)0, isTopLevel);
+                    } catch (KeyNotFoundException e) {
+                        keyFound = false;
+                    }
+
+                    if (writeMode == WriteMode.READ_WRITE && counted && keyFound) {
+                        var reader = this.core.reader();
+                        var writer = this.core.writer();
+                        this.core.seek(slotPtr.slot().value());
+                        long mapCount = reader.readLong();
+                        this.core.seek(slotPtr.slot().value());
+                        writer.writeLong(mapCount - 1);
+                    }
+
+                    if (!keyFound) throw new KeyNotFoundException();
 
                     return slotPtr;
                 }
@@ -977,7 +1024,9 @@ public class Database {
 
     // hash_map
 
-    private SlotPointer readMapSlot(long indexPos, byte[] keyHash, byte keyOffset, WriteMode writeMode, boolean isTopLevel, HashMapGetTarget target) throws IOException {
+    public static record HashMapGetResult(SlotPointer slotPtr, boolean isEmpty) {}
+
+    private HashMapGetResult readMapSlot(long indexPos, byte[] keyHash, byte keyOffset, WriteMode writeMode, boolean isTopLevel, HashMapGetTarget target) throws IOException {
         if (keyOffset > (this.header.hashSize() * 8) / BIT_COUNT) {
             throw new KeyOffsetExceededException();
         }
@@ -1012,11 +1061,11 @@ public class Database {
                         this.core.seek(slotPos);
                         writer.write(nextSlot.toBytes());
 
-                        return switch (target) {
+                        return new HashMapGetResult(switch (target) {
                             case HashMapGetKVPair kvPairTarget -> new SlotPointer(slotPos, nextSlot);
                             case HashMapGetKey keyTarget -> new SlotPointer(keySlotPos, kvPair.keySlot());
                             case HashMapGetValue valueTarget -> new SlotPointer(valueSlotPos, kvPair.valueSlot());
-                        };
+                        }, true);
                     }
                     default -> throw new UnreachableException();
                 }
@@ -1066,11 +1115,11 @@ public class Database {
                                 this.core.seek(slotPos);
                                 writer.write(nextSlot.toBytes());
 
-                                return switch (target) {
+                                return new HashMapGetResult(switch (target) {
                                     case HashMapGetKVPair kvPairTarget -> new SlotPointer(slotPos, nextSlot);
                                     case HashMapGetKey keyTarget -> new SlotPointer(keySlotPos, kvPair.keySlot());
                                     case HashMapGetValue valueTarget -> new SlotPointer(valueSlotPos, kvPair.valueSlot());
-                                };
+                                }, false);
                             }
                         } else if (this.header.tag() == Tag.ARRAY_LIST) {
                             throw new ExpectedTxStartException();
@@ -1079,11 +1128,11 @@ public class Database {
 
                     var keySlotPos = ptr + this.header.hashSize();
                     var valueSlotPos = keySlotPos + Slot.length;
-                    return switch (target) {
+                    return new HashMapGetResult(switch (target) {
                         case HashMapGetKVPair kvPairTarget -> new SlotPointer(slotPos, slot);
                         case HashMapGetKey keyTarget -> new SlotPointer(keySlotPos, kvPair.keySlot());
                         case HashMapGetValue valueTarget -> new SlotPointer(valueSlotPos, kvPair.valueSlot());
-                    };
+                    }, false);
                 } else {
                     switch (writeMode) {
                         case READ_ONLY -> throw new KeyNotFoundException();
@@ -1098,10 +1147,10 @@ public class Database {
                             writer.write(new byte[INDEX_BLOCK_SIZE]);
                             this.core.seek(nextIndexPos + (Slot.length * nextI));
                             writer.write(slot.toBytes());
-                            var nextSlotPtr = readMapSlot(nextIndexPos, keyHash, (byte) (keyOffset + 1), writeMode, isTopLevel, target);
+                            var res = readMapSlot(nextIndexPos, keyHash, (byte) (keyOffset + 1), writeMode, isTopLevel, target);
                             this.core.seek(slotPos);
                             writer.write(new Slot(nextIndexPos, Tag.INDEX).toBytes());
-                            return nextSlotPtr;
+                            return res;
                         }
                         default -> throw new UnreachableException();
                     }

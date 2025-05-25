@@ -5,6 +5,9 @@ import java.io.IOException;
 public class ReadHashMap {
     public ReadCursor cursor;
 
+    protected ReadHashMap() {
+    }
+
     public ReadHashMap(ReadCursor cursor) {
         switch (cursor.slotPtr.slot().tag()) {
             case NONE, HASH_MAP -> {

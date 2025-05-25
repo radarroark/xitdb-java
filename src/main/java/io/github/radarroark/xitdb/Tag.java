@@ -11,7 +11,8 @@ public enum Tag {
     SHORT_BYTES,
     UINT,
     INT,
-    FLOAT;
+    FLOAT,
+    COUNTED_HASH_MAP;
 
     public static Tag valueOf(int n) {
         return Tag.values()[n];

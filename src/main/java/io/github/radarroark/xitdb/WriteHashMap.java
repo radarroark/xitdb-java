@@ -3,6 +3,9 @@ package io.github.radarroark.xitdb;
 import java.io.IOException;
 
 public class WriteHashMap extends ReadHashMap {
+    protected WriteHashMap() {
+    }
+
     public WriteHashMap(WriteCursor cursor) throws Exception {
         super(cursor.writePath(new Database.PathPart[]{
             new Database.HashMapInit()

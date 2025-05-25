@@ -333,6 +333,12 @@ class DatabaseTest {
                 var todoCursor = todos.insertCursor(1);
                 new WriteHashMap(todoCursor);
                 todos.remove(1);
+
+                var lettersCursor = moment.putCursor("letters");
+                var letters = new WriteCountedHashMap(lettersCursor);
+                letters.put("a", new Database.Uint(1));
+                letters.put("a", new Database.Uint(2));
+                letters.put("c", new Database.Uint(2));
             });
 
             // get the most recent copy of the database, like a moment
@@ -387,6 +393,10 @@ class DatabaseTest {
                     kvPairCursor.readKeyValuePair();
                 }
             }
+
+            var lettersCursor = moment.getCursor("letters");
+            var letters = new ReadCountedHashMap(lettersCursor);
+            assertEquals(2, letters.count());
         }
 
         // make a new transaction and change the data
@@ -416,6 +426,11 @@ class DatabaseTest {
                 todos.concat(todosCursor.slot());
                 todos.slice(1, 2);
                 todos.remove(1);
+
+                var lettersCursor = moment.putCursor("letters");
+                var letters = new WriteCountedHashMap(lettersCursor);
+                letters.remove("b");
+                letters.remove("c");
             });
 
             var momentCursor = history.getCursor(-1);
@@ -456,6 +471,10 @@ class DatabaseTest {
             var todoCursor = todos.getCursor(0);
             var todoValue = todoCursor.readBytes(MAX_READ_BYTES);
             assertEquals("Wash the car", new String(todoValue));
+
+            var lettersCursor = moment.getCursor("letters");
+            var letters = new ReadCountedHashMap(lettersCursor);
+            assertEquals(1, letters.count());
         }
 
         // the old data hasn't changed
