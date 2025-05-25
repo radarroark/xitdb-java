@@ -10,7 +10,7 @@ public class ReadHashMap {
 
     public ReadHashMap(ReadCursor cursor) {
         switch (cursor.slotPtr.slot().tag()) {
-            case NONE, HASH_MAP -> {
+            case NONE, HASH_MAP, HASH_SET -> {
                 this.cursor = cursor;
             }
             default -> throw new Database.UnexpectedTagException();

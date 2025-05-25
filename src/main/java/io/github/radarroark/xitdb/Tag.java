@@ -12,7 +12,9 @@ public enum Tag {
     UINT,
     INT,
     FLOAT,
-    COUNTED_HASH_MAP;
+    HASH_SET,
+    COUNTED_HASH_MAP,
+    COUNTED_HASH_SET;
 
     public static Tag valueOf(int n) {
         return Tag.values()[n];

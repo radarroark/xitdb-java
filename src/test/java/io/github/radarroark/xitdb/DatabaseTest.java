@@ -334,11 +334,23 @@ class DatabaseTest {
                 new WriteHashMap(todoCursor);
                 todos.remove(1);
 
-                var lettersCursor = moment.putCursor("letters");
-                var letters = new WriteCountedHashMap(lettersCursor);
-                letters.put("a", new Database.Uint(1));
-                letters.put("a", new Database.Uint(2));
-                letters.put("c", new Database.Uint(2));
+                var lettersCountedMapCursor = moment.putCursor("letters-counted-map");
+                var lettersCountedMap = new WriteCountedHashMap(lettersCountedMapCursor);
+                lettersCountedMap.put("a", new Database.Uint(1));
+                lettersCountedMap.put("a", new Database.Uint(2));
+                lettersCountedMap.put("c", new Database.Uint(2));
+
+                var lettersSetCursor = moment.putCursor("letters-set");
+                var lettersSet = new WriteHashSet(lettersSetCursor);
+                lettersSet.put("a");
+                lettersSet.put("a");
+                lettersSet.put("c");
+
+                var lettersCountedSetCursor = moment.putCursor("letters-counted-set");
+                var lettersCountedSet = new WriteCountedHashSet(lettersCountedSetCursor);
+                lettersCountedSet.put("a");
+                lettersCountedSet.put("a");
+                lettersCountedSet.put("c");
             });
 
             // get the most recent copy of the database, like a moment
@@ -394,9 +406,18 @@ class DatabaseTest {
                 }
             }
 
-            var lettersCursor = moment.getCursor("letters");
-            var letters = new ReadCountedHashMap(lettersCursor);
-            assertEquals(2, letters.count());
+            var lettersCountedMapCursor = moment.getCursor("letters-counted-map");
+            var lettersCountedMap = new ReadCountedHashMap(lettersCountedMapCursor);
+            assertEquals(2, lettersCountedMap.count());
+
+            var lettersSetCursor = moment.getCursor("letters-set");
+            var lettersSet = new ReadHashSet(lettersSetCursor);
+            assert(null != lettersSet.getCursor("a"));
+            assert(null != lettersSet.getCursor("c"));
+
+            var lettersCountedSetCursor = moment.getCursor("letters-counted-set");
+            var lettersCountedSet = new ReadCountedHashSet(lettersCountedSetCursor);
+            assertEquals(2, lettersCountedSet.count());
         }
 
         // make a new transaction and change the data
@@ -427,10 +448,20 @@ class DatabaseTest {
                 todos.slice(1, 2);
                 todos.remove(1);
 
-                var lettersCursor = moment.putCursor("letters");
-                var letters = new WriteCountedHashMap(lettersCursor);
-                letters.remove("b");
-                letters.remove("c");
+                var lettersCountedMapCursor = moment.putCursor("letters-counted-map");
+                var lettersCountedMap = new WriteCountedHashMap(lettersCountedMapCursor);
+                lettersCountedMap.remove("b");
+                lettersCountedMap.remove("c");
+
+                var lettersSetCursor = moment.putCursor("letters-set");
+                var lettersSet = new WriteHashSet(lettersSetCursor);
+                lettersSet.remove("b");
+                lettersSet.remove("c");
+
+                var lettersCountedSetCursor = moment.putCursor("letters-counted-set");
+                var lettersCountedSet = new WriteCountedHashSet(lettersCountedSetCursor);
+                lettersCountedSet.remove("b");
+                lettersCountedSet.remove("c");
             });
 
             var momentCursor = history.getCursor(-1);
@@ -472,9 +503,18 @@ class DatabaseTest {
             var todoValue = todoCursor.readBytes(MAX_READ_BYTES);
             assertEquals("Wash the car", new String(todoValue));
 
-            var lettersCursor = moment.getCursor("letters");
-            var letters = new ReadCountedHashMap(lettersCursor);
-            assertEquals(1, letters.count());
+            var lettersCountedMapCursor = moment.getCursor("letters-counted-map");
+            var lettersCountedMap = new ReadCountedHashMap(lettersCountedMapCursor);
+            assertEquals(1, lettersCountedMap.count());
+
+            var lettersSetCursor = moment.getCursor("letters-set");
+            var lettersSet = new ReadHashSet(lettersSetCursor);
+            assert(null != lettersSet.getCursor("a"));
+            assert(null == lettersSet.getCursor("c"));
+
+            var lettersCountedSetCursor = moment.getCursor("letters-counted-set");
+            var lettersCountedSet = new ReadCountedHashSet(lettersCountedSetCursor);
+            assertEquals(1, lettersCountedSet.count());
         }
 
         // the old data hasn't changed

@@ -230,7 +230,7 @@ public class ReadCursor {
                 }
                 return size;
             }
-            case COUNTED_HASH_MAP -> {
+            case COUNTED_HASH_MAP, COUNTED_HASH_SET -> {
                 this.db.core.seek(this.slotPtr.slot().value());
                 return reader.readLong();
             }

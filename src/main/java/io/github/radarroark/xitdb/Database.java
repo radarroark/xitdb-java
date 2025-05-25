@@ -170,9 +170,9 @@ public class Database {
     public static record LinkedArrayListConcat(Slot list) implements PathPart {}
     public static record LinkedArrayListInsert(long index) implements PathPart {}
     public static record LinkedArrayListRemove(long index) implements PathPart {}
-    public static record HashMapInit(boolean counted) implements PathPart {
+    public static record HashMapInit(boolean counted, boolean set) implements PathPart {
         public HashMapInit() {
-            this(false);
+            this(false, false);
         }
     }
     public static record HashMapGet(HashMapGetTarget target) implements PathPart {}
@@ -802,7 +802,9 @@ public class Database {
                 case HashMapInit hashMapInit -> {
                     if (writeMode == WriteMode.READ_ONLY) throw new WriteNotAllowedException();
 
-                    Tag tag = hashMapInit.counted ? Tag.COUNTED_HASH_MAP : Tag.HASH_MAP;
+                    Tag tag = hashMapInit.counted ?
+                              (hashMapInit.set ? Tag.COUNTED_HASH_SET : Tag.COUNTED_HASH_MAP) :
+                              (hashMapInit.set ? Tag.HASH_SET : Tag.HASH_MAP);
 
                     if (isTopLevel) {
                         var writer = this.core.writer();
@@ -847,8 +849,18 @@ public class Database {
                             writer.write(nextSlotPr.slot().toBytes());
                             return readSlotPointer(writeMode, path, pathI + 1, nextSlotPr);
                         }
-                        case HASH_MAP, COUNTED_HASH_MAP -> {
-                            if (slotPtr.slot().tag() != tag) throw new UnexpectedTagException();
+                        case HASH_MAP, HASH_SET, COUNTED_HASH_MAP, COUNTED_HASH_SET -> {
+                            if (hashMapInit.counted) {
+                                switch (slotPtr.slot().tag()) {
+                                    case COUNTED_HASH_MAP, COUNTED_HASH_SET -> {}
+                                    default -> throw new UnexpectedTagException();
+                                }
+                            } else {
+                                switch (slotPtr.slot().tag()) {
+                                    case HASH_MAP, HASH_SET -> {}
+                                    default -> throw new UnexpectedTagException();
+                                }
+                            }
 
                             var reader = this.core.reader();
                             var writer = this.core.writer();
@@ -886,8 +898,8 @@ public class Database {
                     boolean counted = false;
                     switch (slotPtr.slot().tag()) {
                         case NONE -> throw new KeyNotFoundException();
-                        case HASH_MAP -> {}
-                        case COUNTED_HASH_MAP -> counted = true;
+                        case HASH_MAP, HASH_SET -> {}
+                        case COUNTED_HASH_MAP, COUNTED_HASH_SET -> counted = true;
                         default -> throw new UnexpectedTagException();
                     }
 
@@ -914,8 +926,8 @@ public class Database {
                     boolean counted = false;
                     switch (slotPtr.slot().tag()) {
                         case NONE -> throw new KeyNotFoundException();
-                        case HASH_MAP -> {}
-                        case COUNTED_HASH_MAP -> counted = true;
+                        case HASH_MAP, HASH_SET -> {}
+                        case COUNTED_HASH_MAP, COUNTED_HASH_SET -> counted = true;
                         default -> throw new UnexpectedTagException();
                     }
 

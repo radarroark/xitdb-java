@@ -2,8 +2,8 @@ package io.github.radarroark.xitdb;
 
 import java.io.IOException;
 
-public class ReadCountedHashMap extends ReadHashMap {
-    public ReadCountedHashMap(ReadCursor cursor) {
+public class ReadCountedHashSet extends ReadHashSet {
+    public ReadCountedHashSet(ReadCursor cursor) {
         switch (cursor.slotPtr.slot().tag()) {
             case NONE, COUNTED_HASH_MAP, COUNTED_HASH_SET -> {
                 this.cursor = cursor;

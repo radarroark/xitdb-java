@@ -8,7 +8,7 @@ public class WriteHashMap extends ReadHashMap {
 
     public WriteHashMap(WriteCursor cursor) throws Exception {
         super(cursor.writePath(new Database.PathPart[]{
-            new Database.HashMapInit()
+            new Database.HashMapInit(false, false)
         }));
     }
 
