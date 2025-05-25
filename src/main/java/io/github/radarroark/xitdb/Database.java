@@ -903,10 +903,12 @@ public class Database {
                         default -> throw new UnexpectedTagException();
                     }
 
+                    long indexPos = counted ? slotPtr.slot().value() + 8 : slotPtr.slot().value();
+
                     var res = switch (hashMapGet.target()) {
-                        case HashMapGetKVPair kvPairTarget -> readMapSlot(slotPtr.slot().value(), checkHash(kvPairTarget.hash()), (byte)0, writeMode, isTopLevel, hashMapGet.target());
-                        case HashMapGetKey keyTarget -> readMapSlot(slotPtr.slot().value(), checkHash(keyTarget.hash()), (byte)0, writeMode, isTopLevel, hashMapGet.target());
-                        case HashMapGetValue valueTarget -> readMapSlot(slotPtr.slot().value(), checkHash(valueTarget.hash()), (byte)0, writeMode, isTopLevel, hashMapGet.target());
+                        case HashMapGetKVPair kvPairTarget -> readMapSlot(indexPos, checkHash(kvPairTarget.hash()), (byte)0, writeMode, isTopLevel, hashMapGet.target());
+                        case HashMapGetKey keyTarget -> readMapSlot(indexPos, checkHash(keyTarget.hash()), (byte)0, writeMode, isTopLevel, hashMapGet.target());
+                        case HashMapGetValue valueTarget -> readMapSlot(indexPos, checkHash(valueTarget.hash()), (byte)0, writeMode, isTopLevel, hashMapGet.target());
                     };
 
                     if (writeMode == WriteMode.READ_WRITE && counted && res.isEmpty()) {
@@ -931,9 +933,11 @@ public class Database {
                         default -> throw new UnexpectedTagException();
                     }
 
+                    long indexPos = counted ? slotPtr.slot().value() + 8 : slotPtr.slot().value();
+
                     boolean keyFound = true;
                     try {
-                        removeMapSlot(slotPtr.slot().value(), checkHash(hashMapRemove.hash()), (byte)0, isTopLevel);
+                        removeMapSlot(indexPos, checkHash(hashMapRemove.hash()), (byte)0, isTopLevel);
                     } catch (KeyNotFoundException e) {
                         keyFound = false;
                     }
