@@ -406,18 +406,54 @@ class DatabaseTest {
                 }
             }
 
-            var lettersCountedMapCursor = moment.getCursor("letters-counted-map");
-            var lettersCountedMap = new ReadCountedHashMap(lettersCountedMapCursor);
-            assertEquals(2, lettersCountedMap.count());
+            {
+                var lettersCountedMapCursor = moment.getCursor("letters-counted-map");
+                var lettersCountedMap = new ReadCountedHashMap(lettersCountedMapCursor);
+                assertEquals(2, lettersCountedMap.count());
 
-            var lettersSetCursor = moment.getCursor("letters-set");
-            var lettersSet = new ReadHashSet(lettersSetCursor);
-            assert(null != lettersSet.getCursor("a"));
-            assert(null != lettersSet.getCursor("c"));
+                var iter = lettersCountedMap.iterator();
+                int count = 0;
+                while (iter.hasNext()) {
+                    var kvPairCursor = iter.next();
+                    var kvPair = kvPairCursor.readKeyValuePair();
+                    kvPair.keyCursor.readBytes(MAX_READ_BYTES);
+                    count += 1;
+                }
+                assertEquals(2, count);
+            }
 
-            var lettersCountedSetCursor = moment.getCursor("letters-counted-set");
-            var lettersCountedSet = new ReadCountedHashSet(lettersCountedSetCursor);
-            assertEquals(2, lettersCountedSet.count());
+            {
+                var lettersSetCursor = moment.getCursor("letters-set");
+                var lettersSet = new ReadHashSet(lettersSetCursor);
+                assert(null != lettersSet.getCursor("a"));
+                assert(null != lettersSet.getCursor("c"));
+
+                var iter = lettersSet.iterator();
+                int count = 0;
+                while (iter.hasNext()) {
+                    var kvPairCursor = iter.next();
+                    var kvPair = kvPairCursor.readKeyValuePair();
+                    kvPair.keyCursor.readBytes(MAX_READ_BYTES);
+                    count += 1;
+                }
+                assertEquals(2, count);
+            }
+
+            {
+                var lettersCountedSetCursor = moment.getCursor("letters-counted-set");
+                var lettersCountedSet = new ReadCountedHashSet(lettersCountedSetCursor);
+                assertEquals(2, lettersCountedSet.count());
+
+                var iter = lettersCountedSet.iterator();
+                int count = 0;
+                while (iter.hasNext()) {
+                    var kvPairCursor = iter.next();
+                    var kvPair = kvPairCursor.readKeyValuePair();
+                    kvPair.keyCursor.readBytes(MAX_READ_BYTES);
+                    count += 1;
+                }
+                assertEquals(2, count);
+            }
         }
 
         // make a new transaction and change the data

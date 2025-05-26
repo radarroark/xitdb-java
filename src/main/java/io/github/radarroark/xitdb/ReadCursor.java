@@ -362,10 +362,15 @@ public class ReadCursor {
                     this.index = 0;
                     this.stack = initStack(cursor, header.ptr(), Database.LINKED_ARRAY_LIST_INDEX_BLOCK_SIZE);
                 }
-                case HASH_MAP -> {
+                case HASH_MAP, HASH_SET -> {
                     this.size = 0;
                     this.index = 0;
                     this.stack = initStack(cursor, cursor.slotPtr.slot().value(), Database.INDEX_BLOCK_SIZE);
+                }
+                case COUNTED_HASH_MAP, COUNTED_HASH_SET -> {
+                    this.size = 0;
+                    this.index = 0;
+                    this.stack = initStack(cursor, cursor.slotPtr.slot().value() + 8, Database.INDEX_BLOCK_SIZE);
                 }
                 default -> throw new Database.UnexpectedTagException();
             }
@@ -377,7 +382,7 @@ public class ReadCursor {
                 case NONE -> false;
                 case ARRAY_LIST -> this.index < this.size;
                 case LINKED_ARRAY_LIST -> this.index < this.size;
-                case HASH_MAP -> {
+                case HASH_MAP, HASH_SET, COUNTED_HASH_MAP, COUNTED_HASH_SET -> {
                     // the only way to determine if there's another value in the
                     // hash map is to try to retrieve it, so we store it in a
                     // field and then read from that field when next() is called.
@@ -409,7 +414,7 @@ public class ReadCursor {
                         this.index += 1;
                         return nextInternal(Database.LINKED_ARRAY_LIST_INDEX_BLOCK_SIZE);
                     }
-                    case HASH_MAP -> {
+                    case HASH_MAP, HASH_SET, COUNTED_HASH_MAP, COUNTED_HASH_SET -> {
                         if (this.nextCursorMaybe != null) {
                             var nextCursor = this.nextCursorMaybe;
                             this.nextCursorMaybe = null;
