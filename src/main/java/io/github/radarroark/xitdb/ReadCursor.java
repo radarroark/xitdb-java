@@ -5,7 +5,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Stack;
 
-public class ReadCursor {
+public class ReadCursor implements Iterable<ReadCursor> {
     public SlotPointer slotPtr;
     public Database db;
 
@@ -505,7 +505,12 @@ public class ReadCursor {
         }
     }
 
-    public Iterator iterator() throws IOException {
-        return new Iterator(this);
+    @Override
+    public Iterator iterator() {
+        try {
+            return new Iterator(this);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

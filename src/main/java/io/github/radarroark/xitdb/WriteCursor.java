@@ -136,7 +136,11 @@ public class WriteCursor extends ReadCursor {
     }
 
     @Override
-    public Iterator iterator() throws IOException {
-        return new Iterator(this);
+    public Iterator iterator() {
+        try {
+            return new Iterator(this);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
