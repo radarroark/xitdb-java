@@ -386,12 +386,14 @@ public class ReadCursor {
                     // the only way to determine if there's another value in the
                     // hash map is to try to retrieve it, so we store it in a
                     // field and then read from that field when next() is called.
-                    try {
-                        this.nextCursorMaybe = nextInternal(Database.INDEX_BLOCK_SIZE);
-                        yield this.nextCursorMaybe != null;
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
+                    if (this.nextCursorMaybe == null) {
+                        try {
+                            this.nextCursorMaybe = nextInternal(Database.INDEX_BLOCK_SIZE);
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
                     }
+                    yield this.nextCursorMaybe != null;
                 }
                 default -> false;
             };
