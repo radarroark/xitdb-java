@@ -1,7 +1,5 @@
 package io.github.radarroark.xitdb;
 
-import java.io.IOException;
-
 public class WriteLinkedArrayList extends ReadLinkedArrayList {
     public WriteLinkedArrayList(WriteCursor cursor) throws Exception {
         super(cursor.writePath(new Database.PathPart[]{
@@ -10,7 +8,7 @@ public class WriteLinkedArrayList extends ReadLinkedArrayList {
     }
 
     @Override
-    public WriteCursor.Iterator iterator() throws IOException {
+    public WriteCursor.Iterator iterator() {
         return ((WriteCursor)this.cursor).iterator();
     }
 

@@ -1,8 +1,6 @@
 package io.github.radarroark.xitdb;
 
-import java.io.IOException;
-
-public class WriteHashSet extends ReadHashMap {
+public class WriteHashSet extends ReadHashSet {
     protected WriteHashSet() {
     }
 
@@ -13,7 +11,7 @@ public class WriteHashSet extends ReadHashMap {
     }
 
     @Override
-    public WriteCursor.Iterator iterator() throws IOException {
+    public WriteCursor.Iterator iterator() {
         return ((WriteCursor)this.cursor).iterator();
     }
 

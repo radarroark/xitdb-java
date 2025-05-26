@@ -1,8 +1,6 @@
 package io.github.radarroark.xitdb;
 
-import java.io.IOException;
-
-public class ReadHashMap {
+public class ReadHashMap implements Iterable<ReadCursor> {
     public ReadCursor cursor;
 
     protected ReadHashMap() {
@@ -17,7 +15,7 @@ public class ReadHashMap {
         }
     }
 
-    public ReadCursor.Iterator iterator() throws IOException {
+    public ReadCursor.Iterator iterator() {
         return this.cursor.iterator();
     }
 
