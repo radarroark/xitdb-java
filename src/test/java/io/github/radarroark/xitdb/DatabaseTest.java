@@ -148,11 +148,71 @@ class DatabaseTest {
 
                 var todosCursor = moment.getCursor("todos");
                 var todos = new ReadLinkedArrayList(todosCursor);
-                assertEquals(2, todos.count());
+                assertEquals(3, todos.count());
 
                 var todoCursor = todos.getCursor(0);
                 var todoValue = todoCursor.readBytes(MAX_READ_BYTES);
                 assertEquals("Pay the bills", new String(todoValue));
+
+                var peopleIter = people.iterator();
+                while (peopleIter.hasNext()) {
+                    var personCursor = peopleIter.next();
+                    var person = new ReadHashMap(personCursor);
+                    var personIter = person.iterator();
+                    while (personIter.hasNext()) {
+                        var kvPairCursor = personIter.next();
+                        kvPairCursor.readKeyValuePair();
+                    }
+                }
+
+                {
+                    var lettersCountedMapCursor = moment.getCursor("letters-counted-map");
+                    var lettersCountedMap = new ReadCountedHashMap(lettersCountedMapCursor);
+                    assertEquals(2, lettersCountedMap.count());
+
+                    var iter = lettersCountedMap.iterator();
+                    int count = 0;
+                    while (iter.hasNext()) {
+                        var kvPairCursor = iter.next();
+                        var kvPair = kvPairCursor.readKeyValuePair();
+                        kvPair.keyCursor.readBytes(MAX_READ_BYTES);
+                        count += 1;
+                    }
+                    assertEquals(2, count);
+                }
+
+                {
+                    var lettersSetCursor = moment.getCursor("letters-set");
+                    var lettersSet = new ReadHashSet(lettersSetCursor);
+                    assert(null != lettersSet.getCursor("a"));
+                    assert(null != lettersSet.getCursor("c"));
+
+                    var iter = lettersSet.iterator();
+                    int count = 0;
+                    while (iter.hasNext()) {
+                        var kvPairCursor = iter.next();
+                        var kvPair = kvPairCursor.readKeyValuePair();
+                        kvPair.keyCursor.readBytes(MAX_READ_BYTES);
+                        count += 1;
+                    }
+                    assertEquals(2, count);
+                }
+
+                {
+                    var lettersCountedSetCursor = moment.getCursor("letters-counted-set");
+                    var lettersCountedSet = new ReadCountedHashSet(lettersCountedSetCursor);
+                    assertEquals(2, lettersCountedSet.count());
+
+                    var iter = lettersCountedSet.iterator();
+                    int count = 0;
+                    while (iter.hasNext()) {
+                        var kvPairCursor = iter.next();
+                        var kvPair = kvPairCursor.readKeyValuePair();
+                        kvPair.keyCursor.readBytes(MAX_READ_BYTES);
+                        count += 1;
+                    }
+                    assertEquals(2, count);
+                }
             }
 
             {
@@ -192,7 +252,20 @@ class DatabaseTest {
 
                 var todoCursor = todos.getCursor(0);
                 var todoValue = todoCursor.readBytes(MAX_READ_BYTES);
-                assertEquals("Get an oil change", new String(todoValue));
+                assertEquals("Wash the car", new String(todoValue));
+
+                var lettersCountedMapCursor = moment.getCursor("letters-counted-map");
+                var lettersCountedMap = new ReadCountedHashMap(lettersCountedMapCursor);
+                assertEquals(1, lettersCountedMap.count());
+
+                var lettersSetCursor = moment.getCursor("letters-set");
+                var lettersSet = new ReadHashSet(lettersSetCursor);
+                assert(null != lettersSet.getCursor("a"));
+                assert(null == lettersSet.getCursor("c"));
+
+                var lettersCountedSetCursor = moment.getCursor("letters-counted-set");
+                var lettersCountedSet = new ReadCountedHashSet(lettersCountedSetCursor);
+                assertEquals(1, lettersCountedSet.count());
             }
         }
     }
