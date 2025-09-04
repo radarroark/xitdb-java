@@ -5,8 +5,8 @@ plugins {
 group = "io.github.radarroark"
 version = "0.21.0"
 description = "An immutable database"
-java.sourceCompatibility = JavaVersion.VERSION_21
-java.targetCompatibility = JavaVersion.VERSION_21
+java.sourceCompatibility = JavaVersion.VERSION_17
+java.targetCompatibility = JavaVersion.VERSION_17
 
 repositories {
     mavenCentral()

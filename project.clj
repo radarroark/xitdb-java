@@ -9,4 +9,5 @@
   ;; files in the jar since the :java-source-paths includes a sub dir.
   ;; the :jar-exclusions prevents this from happening...
   :jar-exclusions [#"main/.*" #"test/.*"]
-  :java-source-paths ["src/main/java"])
+  :java-source-paths ["src/main/java"]
+  :javac-options ["--release" "17"])
