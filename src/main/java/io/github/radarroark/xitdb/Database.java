@@ -55,6 +55,11 @@ public class Database {
             return new Header(hashId, hashSize, version, tag, magicNumber);
         }
 
+        public void write(Core core) throws IOException {
+            var writer = core.writer();
+            writer.write(this.toBytes());
+        }
+
         public void validate() {
             if (!Arrays.equals(this.magicNumber, MAGIC_NUMBER)) {
                 throw new InvalidDatabaseException();
@@ -288,7 +293,8 @@ public class Database {
 
         core.seek(0);
         if (core.length() == 0) {
-            this.header = this.writeHeader(hasher);
+            this.header = new Header(hasher.id(), (short)hasher.md().getDigestLength(), VERSION, Tag.NONE, MAGIC_NUMBER);
+            this.header.write(core);
         } else {
             this.header = Header.read(core);
             this.header.validate();
@@ -306,13 +312,6 @@ public class Database {
     }
 
     // private
-
-    private Header writeHeader(Hasher hasher) throws IOException {
-        var header = new Header(hasher.id(), (short)hasher.md().getDigestLength(), VERSION, Tag.NONE, MAGIC_NUMBER);
-        var writer = this.core.writer();
-        writer.write(header.toBytes());
-        return header;
-    }
 
     private void truncate() throws IOException {
         if (this.header.tag() != Tag.ARRAY_LIST) return;
