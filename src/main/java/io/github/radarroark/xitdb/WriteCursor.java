@@ -9,6 +9,9 @@ public class WriteCursor extends ReadCursor {
 
     public WriteCursor writePath(Database.PathPart[] path) throws Exception {
         var slotPtr = this.db.readSlotPointer(Database.WriteMode.READ_WRITE, path, 0, this.slotPtr);
+        if (this.db.txStart == null) {
+            this.db.core.sync();
+        }
         return new WriteCursor(slotPtr, this.db);
     }
 
