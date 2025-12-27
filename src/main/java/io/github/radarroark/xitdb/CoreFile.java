@@ -43,6 +43,10 @@ public class CoreFile implements Core {
     }
 
     @Override
+    public void flush() throws IOException {
+    }
+
+    @Override
     public void sync() throws IOException {
         this.file.getFD().sync();
     }

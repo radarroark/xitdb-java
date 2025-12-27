@@ -295,6 +295,7 @@ public class Database {
         if (core.length() == 0) {
             this.header = new Header(hasher.id(), (short)hasher.md().getDigestLength(), VERSION, Tag.NONE, MAGIC_NUMBER);
             this.header.write(core);
+            this.core.flush();
         } else {
             this.header = Header.read(core);
             this.header.validate();
@@ -505,6 +506,10 @@ public class Database {
 
                     var writer = this.core.writer();
                     if (isTopLevel) {
+                        // it is very important that we flush before updating the header,
+                        // because updating the header is what completes the transaction
+                        this.core.flush();
+
                         var fileSize = this.core.length();
                         var header = new TopLevelArrayListHeader(fileSize, appendResult.header);
 

@@ -72,7 +72,7 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
 
     @Override
     public void writeBoolean(boolean v) throws IOException {
-        write(new byte[]{(byte) (v ? 1 : 0)});
+        throw new UnsupportedOperationException("Unimplemented method 'writeBoolean'");
     }
 
     @Override
@@ -89,16 +89,12 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
 
     @Override
     public void writeChar(int v) throws IOException {
-        var buffer = ByteBuffer.allocate(2);
-        buffer.putChar((char) (v & 0b1111_1111_1111_1111));
-        write(buffer.array());
+        throw new UnsupportedOperationException("Unimplemented method 'writeChar'");
     }
 
     @Override
     public void writeInt(int v) throws IOException {
-        var buffer = ByteBuffer.allocate(4);
-        buffer.putInt(v);
-        write(buffer.array());
+        throw new UnsupportedOperationException("Unimplemented method 'writeInt'");
     }
 
     @Override
@@ -110,31 +106,27 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
 
     @Override
     public void writeFloat(float v) throws IOException {
-        var buffer = ByteBuffer.allocate(4);
-        buffer.putFloat(v);
-        write(buffer.array());
+        throw new UnsupportedOperationException("Unimplemented method 'writeFloat'");
     }
 
     @Override
     public void writeDouble(double v) throws IOException {
-        var buffer = ByteBuffer.allocate(8);
-        buffer.putDouble(v);
-        write(buffer.array());
+        throw new UnsupportedOperationException("Unimplemented method 'writeDouble'");
     }
 
     @Override
     public void writeBytes(String s) throws IOException {
-        write(s.getBytes("UTF-8"));
+        throw new UnsupportedOperationException("Unimplemented method 'writeBytes'");
     }
 
     @Override
     public void writeChars(String s) throws IOException {
-        write(s.getBytes("UTF-8"));
+        throw new UnsupportedOperationException("Unimplemented method 'writeChars'");
     }
 
     @Override
     public void writeUTF(String s) throws IOException {
-        write(s.getBytes("UTF-8"));
+        throw new UnsupportedOperationException("Unimplemented method 'writeUTF'");
     }
 
     // DataInput
@@ -153,27 +145,19 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
             throw new IOException("End of stream");
         }
 
-        for (int i = 0; i < size; i++) {
-            b[off + i] = this.buf[pos + i];
-        }
+        System.arraycopy(this.buf, pos, b, off, len);
 
         this.position.set(pos + size);
     }
 
     @Override
     public int skipBytes(int n) throws IOException {
-        int pos = this.position.get();
-        int bytesToSkip = Math.min(n, this.count - pos);
-        pos += bytesToSkip;
-        this.position.set(pos);
-        return bytesToSkip;
+        throw new UnsupportedOperationException("Unimplemented method 'skipBytes'");
     }
 
     @Override
     public boolean readBoolean() throws IOException {
-        var bytes = new byte[1];
-        this.readFully(bytes);
-        return bytes[0] == 0 ? false : true;
+        throw new UnsupportedOperationException("Unimplemented method 'readBoolean'");
     }
 
     @Override
@@ -185,9 +169,7 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
 
     @Override
     public int readUnsignedByte() throws IOException {
-        var bytes = new byte[1];
-        this.readFully(bytes);
-        return bytes[0];
+        throw new UnsupportedOperationException("Unimplemented method 'readUnsignedByte'");
     }
 
     @Override
@@ -200,18 +182,12 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
 
     @Override
     public int readUnsignedShort() throws IOException {
-        var bytes = new byte[2];
-        this.readFully(bytes);
-        var buffer = ByteBuffer.wrap(bytes);
-        return buffer.getShort();
+        throw new UnsupportedOperationException("Unimplemented method 'readUnsignedShort'");
     }
 
     @Override
     public char readChar() throws IOException {
-        var bytes = new byte[2];
-        this.readFully(bytes);
-        var buffer = ByteBuffer.wrap(bytes);
-        return buffer.getChar();
+        throw new UnsupportedOperationException("Unimplemented method 'readChar'");
     }
 
     @Override
@@ -232,18 +208,12 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
 
     @Override
     public float readFloat() throws IOException {
-        var bytes = new byte[4];
-        this.readFully(bytes);
-        var buffer = ByteBuffer.wrap(bytes);
-        return buffer.getFloat();
+        throw new UnsupportedOperationException("Unimplemented method 'readFloat'");
     }
 
     @Override
     public double readDouble() throws IOException {
-        var bytes = new byte[8];
-        this.readFully(bytes);
-        var buffer = ByteBuffer.wrap(bytes);
-        return buffer.getDouble();
+        throw new UnsupportedOperationException("Unimplemented method 'readDouble'");
     }
 
     @Override

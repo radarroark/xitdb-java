@@ -42,6 +42,11 @@ public class CoreBufferedFile implements Core {
     }
 
     @Override
+    public void flush() throws IOException {
+        this.file.flush();
+    }
+
+    @Override
     public void sync() throws IOException {
         this.file.sync();
     }

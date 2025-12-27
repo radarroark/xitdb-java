@@ -6,11 +6,14 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
 
 public class RandomAccessBufferedFile implements DataOutput, DataInput, AutoCloseable {
     RandomAccessFile file;
     RandomAccessMemory memory;
     int bufferSize; // flushes when the memory is >= this size
+    long filePos;
+    long memoryPos;
 
     public RandomAccessBufferedFile(File file, String mode) throws FileNotFoundException {
         this(file, mode, 8 * 1024 * 1024);
@@ -20,41 +23,45 @@ public class RandomAccessBufferedFile implements DataOutput, DataInput, AutoClos
         this.file = new RandomAccessFile(file, mode);
         this.memory = new RandomAccessMemory();
         this.bufferSize = bufferSize;
+        this.filePos = 0;
+        this.memoryPos = 0;
     }
 
     public void seek(long pos) throws IOException {
-        long filePos = this.file.getFilePointer();
-        if (pos >= filePos && pos <= filePos + this.memory.size()) {
-            this.memory.seek((int) (pos - filePos));
-        } else {
-            flush();
-            this.file.seek(pos);
+        // flush if we are going past the end of the in-memory buffer
+        if (pos > this.memoryPos + this.memory.size()) {
+            this.flush();
+        }
+
+        this.filePos = pos;
+
+        // if the buffer is empty, set its position to this offset as well
+        if (this.memory.size() == 0) {
+            this.memoryPos = pos;
         }
     }
 
     public long length() throws IOException {
-        return Math.max(this.file.getFilePointer() + this.memory.size(), this.file.length());
+        return Math.max(this.memoryPos + this.memory.size(), this.file.length());
     }
 
     public long position() throws IOException {
-        return this.file.getFilePointer() + this.memory.position.get();
+        return this.filePos;
     }
 
     public void setLength(long len) throws IOException {
         flush();
         this.file.setLength(len);
+        this.filePos = Math.min(len, this.filePos);
     }
 
     public void flush() throws IOException {
         if (this.memory.size() > 0) {
+            this.file.seek(this.memoryPos);
             this.file.write(this.memory.toByteArray());
-            this.memory.reset();
-        }
-    }
 
-    public void flushMaybe() throws IOException {
-        if (this.memory.size() >= this.bufferSize) {
-            flush();
+            this.memoryPos = 0;
+            this.memory.reset();
         }
     }
 
@@ -76,114 +83,138 @@ public class RandomAccessBufferedFile implements DataOutput, DataInput, AutoClos
 
     @Override
     public void write(byte[] buffer) throws IOException {
-        this.memory.write(buffer);
-        flushMaybe();
+        if (this.memory.size() + buffer.length > this.bufferSize) {
+            this.flush();
+        }
+
+        if (this.filePos >= this.memoryPos && this.filePos <= this.memoryPos + this.memory.size()) {
+            this.memory.seek((int) (this.filePos - this.memoryPos));
+            this.memory.write(buffer);
+        } else {
+            this.file.seek(this.filePos);
+            this.file.write(buffer);
+        }
+
+        this.filePos += buffer.length;
     }
 
     @Override
-    public void write(int b) throws IOException {
-        this.memory.write(b);
-        flushMaybe();
+    public void write(int i) throws IOException {
+        throw new UnsupportedOperationException("Unimplemented method 'write'");
     }
 
     @Override
     public void write(byte[] b, int off, int len) throws IOException {
-        this.memory.write(b, off, len);
-        flushMaybe();
+        throw new UnsupportedOperationException("Unimplemented method 'write'");
     }
 
     @Override
-    public void writeBoolean(boolean v) throws IOException {
-        this.memory.writeBoolean(v);
-        flushMaybe();
+    public void writeBoolean(boolean b) throws IOException {
+        throw new UnsupportedOperationException("Unimplemented method 'writeBoolean'");
     }
 
     @Override
-    public void writeByte(int v) throws IOException {
-        this.memory.writeByte(v);
-        flushMaybe();
+    public void writeByte(int i) throws IOException {
+        var b = ByteBuffer.allocate(1);
+        b.put((byte) i);
+        this.write(b.array());
     }
 
     @Override
-    public void writeShort(int v) throws IOException {
-        this.memory.writeShort(v);
-        flushMaybe();
+    public void writeShort(int i) throws IOException {
+        var buffer = ByteBuffer.allocate(2);
+        buffer.putShort((short) (i & 0b1111_1111_1111_1111));
+        this.write(buffer.array());
     }
 
     @Override
-    public void writeChar(int v) throws IOException {
-        this.memory.writeChar(v);
-        flushMaybe();
+    public void writeChar(int i) throws IOException {
+        throw new UnsupportedOperationException("Unimplemented method 'writeChar'");
     }
 
     @Override
-    public void writeInt(int v) throws IOException {
-        this.memory.writeInt(v);
-        flushMaybe();
+    public void writeInt(int i) throws IOException {
+        var buffer = ByteBuffer.allocate(4);
+        buffer.putInt(i);
+        this.write(buffer.array());
     }
 
     @Override
-    public void writeLong(long v) throws IOException {
-        this.memory.writeLong(v);
-        flushMaybe();
+    public void writeLong(long l) throws IOException {
+        var buffer = ByteBuffer.allocate(8);
+        buffer.putLong(l);
+        this.write(buffer.array());
     }
 
     @Override
     public void writeFloat(float v) throws IOException {
-        this.memory.writeFloat(v);
-        flushMaybe();
+        throw new UnsupportedOperationException("Unimplemented method 'writeFloat'");
     }
 
     @Override
     public void writeDouble(double v) throws IOException {
-        this.memory.writeDouble(v);
-        flushMaybe();
+        throw new UnsupportedOperationException("Unimplemented method 'writeDouble'");
     }
 
     @Override
     public void writeBytes(String s) throws IOException {
-        this.memory.writeBytes(s);
-        flushMaybe();
+        throw new UnsupportedOperationException("Unimplemented method 'writeBytes'");
     }
 
     @Override
     public void writeChars(String s) throws IOException {
-        this.memory.writeChars(s);
-        flushMaybe();
+        throw new UnsupportedOperationException("Unimplemented method 'writeChars'");
     }
 
     @Override
     public void writeUTF(String s) throws IOException {
-        this.memory.writeUTF(s);
-        flushMaybe();
+        throw new UnsupportedOperationException("Unimplemented method 'writeUTF'");
     }
 
     // DataInput
 
     @Override
-    public void readFully(byte[] b) throws IOException {
-        long filePos = this.file.getFilePointer();
-        int memPos = this.memory.position.get();
-        if (memPos + b.length <= this.memory.size()) {
-            this.memory.readFully(b);
-        } else {
-            flush();
-            this.file.seek(filePos + memPos);
-            this.file.readFully(b);
+    public void readFully(byte[] buffer) throws IOException {
+        int pos = 0;
+
+        // read from the disk -- before the in-memory buffer
+        if (this.filePos < this.memoryPos) {
+            int sizeBeforeMem = Math.min((int) (this.memoryPos - this.filePos), buffer.length);
+            this.file.seek(this.filePos);
+            this.file.readFully(buffer, 0, sizeBeforeMem);
+            pos += sizeBeforeMem;
+            this.filePos += sizeBeforeMem;
+        }
+
+        if (pos == buffer.length) return;
+
+        // read from the in-memory buffer
+        if (this.filePos >= this.memoryPos && this.filePos < this.memoryPos + this.memory.size()) {
+            int memPos = (int) (this.filePos - this.memoryPos);
+            int sizeInMem = Math.min(this.memory.size() - memPos, buffer.length - pos);
+            this.memory.seek(memPos);
+            this.memory.readFully(buffer, pos, sizeInMem);
+            pos += sizeInMem;
+            this.filePos += sizeInMem;
+        }
+
+        if (pos == buffer.length) return;
+
+        // read from the disk -- after the in-memory buffer
+        if (this.filePos >= this.memoryPos + this.memory.size()) {
+            int sizeAfterMem = (int) (buffer.length - pos);
+            this.file.seek(this.filePos);
+            this.file.readFully(buffer, pos, sizeAfterMem);
+            pos += sizeAfterMem;
+            this.filePos += sizeAfterMem;
         }
     }
 
     @Override
     public void readFully(byte[] b, int off, int len) throws IOException {
-        long filePos = this.file.getFilePointer();
-        int memPos = this.memory.position.get();
-        if (memPos + len <= this.memory.size()) {
-            this.memory.readFully(b, off, len);
-        } else {
-            flush();
-            this.file.seek(filePos + memPos);
-            this.file.readFully(b, off, len);
-        }
+        var buffer = new byte[len];
+        this.readFully(buffer);
+        System.arraycopy(buffer, 0, b, off, len);
     }
 
     @Override
@@ -198,15 +229,9 @@ public class RandomAccessBufferedFile implements DataOutput, DataInput, AutoClos
 
     @Override
     public byte readByte() throws IOException {
-        long filePos = this.file.getFilePointer();
-        int memPos = this.memory.position.get();
-        if (memPos + 1 <= this.memory.size()) {
-            return this.memory.readByte();
-        } else {
-            flush();
-            this.file.seek(filePos + memPos);
-            return this.file.readByte();
-        }
+        var b = new byte[1];
+        this.readFully(b);
+        return b[0];
     }
 
     @Override
@@ -216,15 +241,9 @@ public class RandomAccessBufferedFile implements DataOutput, DataInput, AutoClos
 
     @Override
     public short readShort() throws IOException {
-        long filePos = this.file.getFilePointer();
-        int memPos = this.memory.position.get();
-        if (memPos + 2 <= this.memory.size()) {
-            return this.memory.readShort();
-        } else {
-            flush();
-            this.file.seek(filePos + memPos);
-            return this.file.readShort();
-        }
+        var b = new byte[2];
+        this.readFully(b);
+        return ByteBuffer.wrap(b).getShort();
     }
 
     @Override
@@ -239,24 +258,16 @@ public class RandomAccessBufferedFile implements DataOutput, DataInput, AutoClos
 
     @Override
     public int readInt() throws IOException {
-        long filePos = this.file.getFilePointer();
-        int memPos = this.memory.position.get();
-        flush();
-        this.file.seek(filePos + memPos);
-        return this.file.readInt();
+        var b = new byte[4];
+        this.readFully(b);
+        return ByteBuffer.wrap(b).getInt();
     }
 
     @Override
     public long readLong() throws IOException {
-        long filePos = this.file.getFilePointer();
-        int memPos = this.memory.position.get();
-        if (memPos + 8 <= this.memory.size()) {
-            return this.memory.readLong();
-        } else {
-            flush();
-            this.file.seek(filePos + memPos);
-            return this.file.readLong();
-        }
+        var b = new byte[8];
+        this.readFully(b);
+        return ByteBuffer.wrap(b).getLong();
     }
 
     @Override

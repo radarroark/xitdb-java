@@ -42,6 +42,10 @@ public class CoreMemory implements Core {
     }
 
     @Override
+    public void flush() throws IOException {
+    }
+
+    @Override
     public void sync() throws IOException {
     }
 }

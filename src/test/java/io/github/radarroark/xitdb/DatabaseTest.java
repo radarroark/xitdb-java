@@ -24,19 +24,26 @@ class DatabaseTest {
             testHighLevelApi(core, hasher, null);
         }
 
-        var file = File.createTempFile("database", "");
-        file.deleteOnExit();
+        {
+            var file = File.createTempFile("database", "");
+            file.deleteOnExit();
 
-        try (var raf = new RandomAccessFile(file, "rw")) {
-            var core = new CoreFile(raf);
-            var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
-            testHighLevelApi(core, hasher, file);
+            try (var raf = new RandomAccessFile(file, "rw")) {
+                var core = new CoreFile(raf);
+                var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
+                testHighLevelApi(core, hasher, file);
+            }
         }
 
-        try (var raf = new RandomAccessBufferedFile(file, "rw")) {
-            var core = new CoreBufferedFile(raf);
-            var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
-            testHighLevelApi(core, hasher, file);
+        {
+            var file = File.createTempFile("database", "");
+            file.deleteOnExit();
+
+            try (var raf = new RandomAccessBufferedFile(file, "rw")) {
+                var core = new CoreBufferedFile(raf);
+                var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
+                testHighLevelApi(core, hasher, file);
+            }
         }
     }
 
@@ -48,19 +55,26 @@ class DatabaseTest {
             testLowLevelApi(core, hasher);
         }
 
-        var file = File.createTempFile("database", "");
-        file.deleteOnExit();
+        {
+            var file = File.createTempFile("database", "");
+            file.deleteOnExit();
 
-        try (var raf = new RandomAccessFile(file, "rw")) {
-            var core = new CoreFile(raf);
-            var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
-            testLowLevelApi(core, hasher);
+            try (var raf = new RandomAccessFile(file, "rw")) {
+                var core = new CoreFile(raf);
+                var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
+                testLowLevelApi(core, hasher);
+            }
         }
 
-        try (var raf = new RandomAccessBufferedFile(file, "rw", 1024)) {
-            var core = new CoreBufferedFile(raf);
-            var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
-            testLowLevelApi(core, hasher);
+        {
+            var file = File.createTempFile("database", "");
+            file.deleteOnExit();
+
+            try (var raf = new RandomAccessBufferedFile(file, "rw", 1024)) {
+                var core = new CoreBufferedFile(raf);
+                var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
+                testLowLevelApi(core, hasher);
+            }
         }
     }
 

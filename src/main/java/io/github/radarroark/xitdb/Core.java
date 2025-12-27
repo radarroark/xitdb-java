@@ -17,5 +17,7 @@ public interface Core {
 
     public void setLength(long len) throws IOException;
 
+    public void flush() throws IOException;
+
     public void sync() throws IOException;
 }
