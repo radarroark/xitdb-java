@@ -139,15 +139,8 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
     @Override
     public void readFully(byte[] b, int off, int len) throws IOException {
         int pos = this.position.get();
-        int size = len - off;
-
-        if (pos + size > this.count) {
-            throw new IOException("End of stream");
-        }
-
         System.arraycopy(this.buf, pos, b, off, len);
-
-        this.position.set(pos + size);
+        this.position.set(pos + len);
     }
 
     @Override
