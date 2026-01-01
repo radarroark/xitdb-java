@@ -438,6 +438,9 @@ class DatabaseTest {
                 lettersCountedSet.put("a");
                 lettersCountedSet.put("a");
                 lettersCountedSet.put("c");
+
+                var randomBigInt = new BigInteger(256, new java.util.Random());
+                moment.put("random-number", new Database.Bytes(randomBigInt.toByteArray(), "bi".getBytes()));
             });
 
             // get the most recent copy of the database, like a moment
@@ -541,6 +544,10 @@ class DatabaseTest {
                 }
                 assertEquals(2, count);
             }
+
+            var randomNumberCursor = moment.getCursor("random-number");
+            var randomNumber = randomNumberCursor.readBytesObject(MAX_READ_BYTES);
+            assertEquals("bi", new String(randomNumber.formatTag()));
         }
 
         // make a new transaction and change the data
