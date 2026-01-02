@@ -217,7 +217,7 @@ The reason that `big-cities` was mutated is because all data in a given transact
 
 To show how to fix this, let's first undo the transaction we just made. Here we add a new value to the history that uses the slot from two transactions ago, which effectively reverts the last transaction:
 
-```zig
+```java
 history.append(history.getSlot(-2));
 ```
 
