@@ -14,6 +14,10 @@ public class ReadLinkedArrayList implements Iterable<ReadCursor> {
         }
     }
 
+    public Slot slot() {
+        return cursor.slot();
+    }
+
     public long count() throws IOException {
         return this.cursor.count();
     }

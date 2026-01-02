@@ -142,6 +142,123 @@ var randomBigInt = new BigInteger(randomNumber.value());
 
 There are many types you may want to store this way. Maybe an ISO-8601 date like `2026-01-01T18:55:48Z` could be stored with `dt` as the format tag. It's also great for storing custom classes. Just define the class, serialize it as a byte array using whatever mechanism you wish, and store it with a format tag. Keep in mind that format tags can be *any* 2 bytes, so there are 65536 possible format tags.
 
+## Cloning and Undoing
+
+A powerful feature of immutable data is fast cloning. Any data structure can be instantly cloned and changed without affecting the original. Starting with the example code above, we can make a new transaction that creates a "food" list based on the existing "fruits" list:
+
+```java
+history.appendContext(history.getSlot(-1), (cursor) -> {
+    var moment = new WriteHashMap(cursor);
+
+    var fruitsCursor = moment.getCursor("fruits");
+    var fruits = new ReadArrayList(fruitsCursor);
+
+    // create a new key called "food" whose initial value is
+    // based on the "fruits" list
+    var foodCursor = moment.putCursor("food");
+    foodCursor.write(fruits.slot());
+
+    var food = new WriteArrayList(foodCursor);
+    food.append(new Database.Bytes("eggs"));
+    food.append(new Database.Bytes("rice"));
+    food.append(new Database.Bytes("fish"));
+});
+
+var momentCursor = history.getCursor(-1);
+var moment = new ReadHashMap(momentCursor);
+
+// the food list includes the fruits
+var foodCursor = moment.getCursor("food");
+var food = new ReadArrayList(foodCursor);
+assertEquals(6, food.count());
+
+// ...but the fruits list hasn't been changed
+var fruitsCursor = moment.getCursor("fruits");
+var fruits = new ReadArrayList(fruitsCursor);
+assertEquals(3, fruits.count());
+```
+
+There's one catch, though. If we try cloning a data structure that was created in the same transaction, it doesn't seem to work:
+
+```java
+history.appendContext(history.getSlot(-1), (cursor) -> {
+    var moment = new WriteHashMap(cursor);
+
+    var bigCitiesCursor = moment.putCursor("big-cities");
+    var bigCities = new WriteArrayList(bigCitiesCursor);
+    bigCities.append(new Database.Bytes("New York, NY"));
+    bigCities.append(new Database.Bytes("Los Angeles, CA"));
+
+    // create a new key called "cities" whose initial value is
+    // based on the "big-cities" list
+    var citiesCursor = moment.putCursor("cities");
+    citiesCursor.write(bigCities.slot());
+
+    var cities = new WriteArrayList(citiesCursor);
+    cities.append(new Database.Bytes("Charleston, SC"));
+    cities.append(new Database.Bytes("Louisville, KY"));
+});
+
+var momentCursor = history.getCursor(-1);
+var moment = new ReadHashMap(momentCursor);
+
+// the cities list contains all four
+var citiesCursor = moment.getCursor("cities");
+var cities = new ReadArrayList(citiesCursor);
+assertEquals(4, cities.count());
+
+// ..but so does big-cities! we did not intend to mutate this
+var bigCitiesCursor = moment.getCursor("big-cities");
+var bigCities = new ReadArrayList(bigCitiesCursor);
+assertEquals(4, bigCities.count());
+```
+
+The reason that `big-cities` was mutated is because all data in a given transaction is temporarily mutable. This is a very important optimization, but in this case, it's not what we want.
+
+To show how to fix this, let's first undo the transaction we just made. Here we add a new value to the history that uses the slot from two transactions ago, which effectively reverts the last transaction:
+
+```zig
+history.append(history.getSlot(-2));
+```
+
+This time, after making the "big cities" list, we call `freeze`, which tells xitdb to consider all data made so far in the transaction to be immutable. After that, we can clone it into the "cities" list and it will work the way we wanted:
+
+```java
+history.appendContext(history.getSlot(-1), (cursor) -> {
+    var moment = new WriteHashMap(cursor);
+
+    var bigCitiesCursor = moment.putCursor("big-cities");
+    var bigCities = new WriteArrayList(bigCitiesCursor);
+    bigCities.append(new Database.Bytes("New York, NY"));
+    bigCities.append(new Database.Bytes("Los Angeles, CA"));
+
+    // freeze here, so big-cities won't be mutated
+    cursor.db.freeze();
+
+    // create a new key called "cities" whose initial value is
+    // based on the "big-cities" list
+    var citiesCursor = moment.putCursor("cities");
+    citiesCursor.write(bigCities.slot());
+
+    var cities = new WriteArrayList(citiesCursor);
+    cities.append(new Database.Bytes("Charleston, SC"));
+    cities.append(new Database.Bytes("Louisville, KY"));
+});
+
+var momentCursor = history.getCursor(-1);
+var moment = new ReadHashMap(momentCursor);
+
+// the cities list contains all four
+var citiesCursor = moment.getCursor("cities");
+var cities = new ReadArrayList(citiesCursor);
+assertEquals(4, cities.count());
+
+// and big-cities only contains the original two
+var bigCitiesCursor = moment.getCursor("big-cities");
+var bigCities = new ReadArrayList(bigCitiesCursor);
+assertEquals(2, bigCities.count());
+```
+
 ## Thread Safety
 
 It is possible to read the database from multiple threads without locks, even while writes are happening. This is a big benefit of immutable databases. However, each thread needs to use its own `Database` instance. You can do this by creating a `ThreadLocal`. See [the multithreading test](https://github.com/radarroark/xitdb-java/blob/d7cf0869cf0f66eca823051dfbdec0ab5e5a09cb/src/test/java/io/github/radarroark/xitdb/DatabaseTest.java#L201) for an example of this. Also, keep in mind that writes still need to come from one thread at a time.

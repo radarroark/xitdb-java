@@ -15,6 +15,10 @@ public class ReadHashSet implements Iterable<ReadCursor> {
         }
     }
 
+    public Slot slot() {
+        return cursor.slot();
+    }
+
     public ReadCursor.Iterator iterator() {
         return this.cursor.iterator();
     }

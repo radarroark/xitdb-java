@@ -57,6 +57,14 @@ public class Database {
         return new WriteCursor(new SlotPointer(null, new Slot(DATABASE_START, this.header.tag)), this);
     }
 
+    public void freeze() throws IOException {
+        if (this.txStart != null) {
+            this.txStart = this.core.length();
+        } else {
+            throw new ExpectedTxStartException();
+        }
+    }
+
     // private
 
     private void truncate() throws IOException {

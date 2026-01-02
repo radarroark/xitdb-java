@@ -753,6 +753,119 @@ class DatabaseTest {
 
             assertEquals(sizeBefore, sizeAfter);
         }
+
+        // cloning
+        {
+            var history = new WriteArrayList(db.rootCursor());
+
+            history.appendContext(history.getSlot(-1), (cursor) -> {
+                var moment = new WriteHashMap(cursor);
+
+                var fruitsCursor = moment.getCursor("fruits");
+                var fruits = new ReadArrayList(fruitsCursor);
+
+                // create a new key called "food" whose initial value is
+                // based on the "fruits" list
+                var foodCursor = moment.putCursor("food");
+                foodCursor.write(fruits.slot());
+
+                var food = new WriteArrayList(foodCursor);
+                food.append(new Database.Bytes("eggs"));
+                food.append(new Database.Bytes("rice"));
+                food.append(new Database.Bytes("fish"));
+            });
+
+            var momentCursor = history.getCursor(-1);
+            var moment = new ReadHashMap(momentCursor);
+
+            // the food list includes the fruits
+            var foodCursor = moment.getCursor("food");
+            var food = new ReadArrayList(foodCursor);
+            assertEquals(6, food.count());
+
+            // ...but the fruits list hasn't been changed
+            var fruitsCursor = moment.getCursor("fruits");
+            var fruits = new ReadArrayList(fruitsCursor);
+            assertEquals(3, fruits.count());
+        }
+
+        // accidental mutation when cloning inside a transaction
+        {
+            var history = new WriteArrayList(db.rootCursor());
+
+            history.appendContext(history.getSlot(-1), (cursor) -> {
+                var moment = new WriteHashMap(cursor);
+
+                var bigCitiesCursor = moment.putCursor("big-cities");
+                var bigCities = new WriteArrayList(bigCitiesCursor);
+                bigCities.append(new Database.Bytes("New York, NY"));
+                bigCities.append(new Database.Bytes("Los Angeles, CA"));
+
+                // create a new key called "cities" whose initial value is
+                // based on the "big-cities" list
+                var citiesCursor = moment.putCursor("cities");
+                citiesCursor.write(bigCities.slot());
+
+                var cities = new WriteArrayList(citiesCursor);
+                cities.append(new Database.Bytes("Charleston, SC"));
+                cities.append(new Database.Bytes("Louisville, KY"));
+            });
+
+            var momentCursor = history.getCursor(-1);
+            var moment = new ReadHashMap(momentCursor);
+
+            // the cities list contains all four
+            var citiesCursor = moment.getCursor("cities");
+            var cities = new ReadArrayList(citiesCursor);
+            assertEquals(4, cities.count());
+
+            // ..but so does big-cities! we did not intend to mutate this
+            var bigCitiesCursor = moment.getCursor("big-cities");
+            var bigCities = new ReadArrayList(bigCitiesCursor);
+            assertEquals(4, bigCities.count());
+
+            // revert that change
+            history.append(history.getSlot(-2));
+        }
+
+        // preventing accidental mutation with freezing
+        {
+            var history = new WriteArrayList(db.rootCursor());
+
+            history.appendContext(history.getSlot(-1), (cursor) -> {
+                var moment = new WriteHashMap(cursor);
+
+                var bigCitiesCursor = moment.putCursor("big-cities");
+                var bigCities = new WriteArrayList(bigCitiesCursor);
+                bigCities.append(new Database.Bytes("New York, NY"));
+                bigCities.append(new Database.Bytes("Los Angeles, CA"));
+
+                // freeze here, so big-cities won't be mutated
+                cursor.db.freeze();
+
+                // create a new key called "cities" whose initial value is
+                // based on the "big-cities" list
+                var citiesCursor = moment.putCursor("cities");
+                citiesCursor.write(bigCities.slot());
+
+                var cities = new WriteArrayList(citiesCursor);
+                cities.append(new Database.Bytes("Charleston, SC"));
+                cities.append(new Database.Bytes("Louisville, KY"));
+            });
+
+            var momentCursor = history.getCursor(-1);
+            var moment = new ReadHashMap(momentCursor);
+
+            // the cities list contains all four
+            var citiesCursor = moment.getCursor("cities");
+            var cities = new ReadArrayList(citiesCursor);
+            assertEquals(4, cities.count());
+
+            // and big-cities only contains the original two
+            var bigCitiesCursor = moment.getCursor("big-cities");
+            var bigCities = new ReadArrayList(bigCitiesCursor);
+            assertEquals(2, bigCities.count());
+        }
     }
 
     void testSlice(Core core, Hasher hasher, int originalSize, long sliceOffset, long sliceSize) throws Exception {
