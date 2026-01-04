@@ -7,12 +7,14 @@ xitdb is an immutable database written in Java. It is available [on Clojars](htt
 * This project is a port of the [original Zig version](https://github.com/radarroark/xitdb).
 * To use it from Clojure, see [xitdb-clj](https://github.com/codeboost/xitdb-clj) for a nice wrapper library, or just [use java interop](https://github.com/radarroark/xitdb-clj-example).
 
-This database was originally made for the [xit version control system](https://github.com/radarroark/xit), but I bet it has a lot of potential for other projects. The combination of being immutable and having an API similar to in-memory data structures is pretty powerful. Consider using it instead of SQLite for your Java projects: it's simpler, it's pure Java, and it creates no impedence mismatch with your program the way SQL databases do.
+This database was originally made for the [xit version control system](https://github.com/radarroark/xit), but I bet it has a lot of potential for other projects. The combination of being immutable and having an API similar to in-memory data structures is pretty powerful. Consider using it instead of SQLite for your Java projects: it's simpler, it's pure Java, and it creates no impedance mismatch with your program the way SQL databases do.
 
 * [Example](#example)
 * [Initializing a Database](#initializing-a-database)
 * [Types](#types)
 * [Cloning and Undoing](#cloning-and-undoing)
+* [Large Byte Arrays](#large-byte-arrays)
+* [Iterators](#iterators)
 * [Thread Safety](#thread-safety)
 
 ## Example
@@ -264,6 +266,66 @@ var bigCitiesCursor = moment.getCursor("big-cities");
 var bigCities = new ReadArrayList(bigCitiesCursor);
 assertEquals(2, bigCities.count());
 ```
+
+## Large Byte Arrays
+
+When reading and writing large byte arrays, you probably don't want to have all of their contents in memory at once. To incrementally write to a byte array, just get a writer from a cursor:
+
+```java
+var longTextCursor = moment.putCursor("long-text");
+var writer = longTextCursor.writer();
+for (int i = 0; i < 50; i++) {
+    writer.write("hello, world\n".getBytes());
+}
+writer.finish(); // remember to call this!
+```
+
+...and to read it incrementally, get a reader from a cursor:
+
+```java
+var longTextCursor = moment.getCursor("long-text");
+var reader = longTextCursor.reader();
+var is = new BufferedInputStream(reader, 1024);
+var bufr = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+for (var it = bufr.lines().iterator(); it.hasNext();) {
+    String line = it.next();
+    System.out.println(line);
+}
+```
+
+## Iterators
+
+All data structures support iteration. Here's an example of iterating over an `ArrayList` and printing all of the keys and values of each `HashMap` contained in it:
+
+```java
+var peopleCursor = moment.getCursor("people");
+var people = new ReadArrayList(peopleCursor);
+
+var peopleIter = people.iterator();
+while (peopleIter.hasNext()) {
+    var personCursor = peopleIter.next();
+    var person = new ReadHashMap(personCursor);
+    var personIter = person.iterator();
+    while (personIter.hasNext()) {
+        var kvPairCursor = personIter.next();
+        var kvPair = kvPairCursor.readKeyValuePair();
+
+        var key = new String(kvPair.keyCursor.readBytes(MAX_READ_BYTES));
+
+        switch (kvPair.valueCursor.slot().tag()) {
+            case SHORT_BYTES, BYTES -> System.out.println(key + ": " + new String(kvPair.valueCursor.readBytes(MAX_READ_BYTES)));
+            case UINT -> System.out.println(key + ": " + kvPair.valueCursor.readUint());
+            case INT -> System.out.println(key + ": " + kvPair.valueCursor.readInt());
+            case FLOAT -> System.out.println(key + ": " + kvPair.valueCursor.readFloat());
+            default -> throw new Database.UnexpectedTagException();
+        }
+    }
+}
+```
+
+The above code iterates over `people`, which is an `ArrayList`, and for each person (which is a `HashMap`), it iterates over each of its key-value pairs.
+
+The iteration of the `HashMap` looks the same with `HashSet`, `CountedHashMap`, and `CountedHashSet`. When iterating, you call `readKeyValuePair` on the cursor and can read the `keyCursor` and `valueCursor` from it. In maps, `put` sets the key and value. In sets, `put` only sets the key; the value will always have a tag type of `NONE`.
 
 ## Thread Safety
 

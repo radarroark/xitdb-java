@@ -4,9 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -441,6 +445,13 @@ class DatabaseTest {
 
                 var randomBigInt = new BigInteger(256, new java.util.Random());
                 moment.put("random-number", new Database.Bytes(randomBigInt.toByteArray(), "bi".getBytes()));
+
+                var longTextCursor = moment.putCursor("long-text");
+                var writer = longTextCursor.writer();
+                for (int i = 0; i < 50; i++) {
+                    writer.write("hello, world\n".getBytes());
+                }
+                writer.finish();
             });
 
             // get the most recent copy of the database, like a moment
@@ -492,8 +503,23 @@ class DatabaseTest {
                 var personIter = person.iterator();
                 while (personIter.hasNext()) {
                     var kvPairCursor = personIter.next();
-                    kvPairCursor.readKeyValuePair();
+                    var kvPair = kvPairCursor.readKeyValuePair();
+
+                    kvPair.keyCursor.readBytes(MAX_READ_BYTES);
+
+                    switch (kvPair.valueCursor.slot().tag()) {
+                        case SHORT_BYTES, BYTES -> kvPair.valueCursor.readBytes(MAX_READ_BYTES);
+                        case UINT -> kvPair.valueCursor.readUint();
+                        case INT -> kvPair.valueCursor.readInt();
+                        case FLOAT -> kvPair.valueCursor.readFloat();
+                        default -> throw new Database.UnexpectedTagException();
+                    }
                 }
+            }
+
+            var fruitsIter = fruits.iterator();
+            while (fruitsIter.hasNext()) {
+                fruitsIter.next();
             }
 
             {
@@ -545,9 +571,21 @@ class DatabaseTest {
                 assertEquals(2, count);
             }
 
-            var randomNumberCursor = moment.getCursor("random-number");
-            var randomNumber = randomNumberCursor.readBytesObject(MAX_READ_BYTES);
-            assertEquals("bi", new String(randomNumber.formatTag()));
+            {
+                var randomNumberCursor = moment.getCursor("random-number");
+                var randomNumber = randomNumberCursor.readBytesObject(MAX_READ_BYTES);
+                assertEquals("bi", new String(randomNumber.formatTag()));
+            }
+
+            {
+                var longTextCursor = moment.getCursor("long-text");
+                var reader = longTextCursor.reader();
+                var is = new BufferedInputStream(reader, 1024);
+                var bufr = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+                for (var it = bufr.lines().iterator(); it.hasNext();) {
+                    it.next();
+                }
+            }
         }
 
         // make a new transaction and change the data
