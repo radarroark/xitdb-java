@@ -238,7 +238,7 @@ public class ReadCursor implements Iterable<ReadCursor> {
         }
     }
 
-    public static class Reader {
+    public static class Reader extends java.io.InputStream {
         ReadCursor parent;
         long size;
         long startPosition;
@@ -251,6 +251,18 @@ public class ReadCursor implements Iterable<ReadCursor> {
             this.relativePosition = relativePosition;
         }
 
+        @Override
+        public int read() throws IOException {
+            var buffer = new byte[1];
+            try {
+                this.readFully(buffer);
+            } catch (Database.EndOfStreamException e) {
+                return -1;
+            }
+            return buffer[0];
+        }
+
+        @Override
         public int read(byte[] buffer) throws IOException {
             if (this.size < this.relativePosition) throw new Database.EndOfStreamException();
             this.parent.db.core.seek(this.startPosition + this.relativePosition);
