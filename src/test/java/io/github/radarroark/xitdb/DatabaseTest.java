@@ -373,6 +373,27 @@ class DatabaseTest {
         ((CoreFile)db.get().core).file.close();
     }
 
+    @Test
+    void testLowLevelMemoryOperations() throws Exception {
+        try (var ram = new RandomAccessMemory()) {
+            var core = new CoreMemory(ram);
+            var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
+            var db = new Database(core, hasher);
+
+            var map = new WriteHashMap(db.rootCursor());
+            var textCursor = map.putCursor("text");
+
+            var writer = textCursor.writer();
+            writer.write("goodbye, world!".getBytes());
+            writer.seek(9);
+            writer.write("cruel world!".getBytes());
+            writer.finish();
+
+            var reader = textCursor.reader();
+            assertEquals("goodbye, cruel world!", new String(reader.readAllBytes()));
+        }
+    }
+
     void testHighLevelApi(Core core, Hasher hasher, File fileMaybe) throws Exception {
         // init the db
         core.setLength(0);
