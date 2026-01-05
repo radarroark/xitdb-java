@@ -274,11 +274,15 @@ public class ReadCursor implements Iterable<ReadCursor> {
 
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
-            var buffer = new byte[len];
-            var readSize = this.read(buffer);
-            if (readSize == -1) return -1;
-            System.arraycopy(buffer, 0, b, off, readSize);
-            return readSize;
+            if (b.length == len) {
+                return this.read(b);
+            } else {
+                var buffer = new byte[len];
+                var readSize = this.read(buffer);
+                if (readSize == -1) return -1;
+                System.arraycopy(buffer, 0, b, off, readSize);
+                return readSize;
+            }
         }
 
         public void readFully(byte[] buffer) throws IOException {
