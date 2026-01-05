@@ -273,24 +273,28 @@ When reading and writing large byte arrays, you probably don't want to have all 
 
 ```java
 var longTextCursor = moment.putCursor("long-text");
-var writer = longTextCursor.writer();
-for (int i = 0; i < 50; i++) {
-    writer.write("hello, world\n".getBytes());
+var cursorWriter = longTextCursor.writer();
+try (var bos = new BufferedOutputStream(cursorWriter)) {
+    for (int i = 0; i < 50; i++) {
+        bos.write("hello, world\n".getBytes());
+    }
 }
-writer.finish(); // remember to call this!
+cursorWriter.finish(); // remember to call this!
 ```
 
 ...and to read it incrementally, get a reader from a cursor:
 
 ```java
 var longTextCursor = moment.getCursor("long-text");
-var reader = longTextCursor.reader();
-var is = new BufferedInputStream(reader, 1024);
-var bufr = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-for (var it = bufr.lines().iterator(); it.hasNext();) {
-    String line = it.next();
-    System.out.println(line);
+var cursorReader = longTextCursor.reader();
+var bis = new BufferedInputStream(cursorReader);
+var br = new BufferedReader(new InputStreamReader(bis, StandardCharsets.UTF_8));
+int count = 0;
+for (var it = br.lines().iterator(); it.hasNext();) {
+    it.next();
+    count += 1;
 }
+assertEquals(50, count);
 ```
 
 ## Iterators

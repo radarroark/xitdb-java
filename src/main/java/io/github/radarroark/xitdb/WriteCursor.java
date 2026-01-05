@@ -95,6 +95,15 @@ public class WriteCursor extends ReadCursor {
             }
         }
 
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            if (b.length == len) {
+                this.write(b);
+            } else {
+                this.write(java.util.Arrays.copyOfRange(b, off, off + len));
+            }
+        }
+
         public void finish() throws IOException {
             var writer = this.parent.db.core.writer();
 

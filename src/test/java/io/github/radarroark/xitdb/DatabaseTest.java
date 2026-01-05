@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
@@ -468,11 +469,13 @@ class DatabaseTest {
                 moment.put("random-number", new Database.Bytes(randomBigInt.toByteArray(), "bi".getBytes()));
 
                 var longTextCursor = moment.putCursor("long-text");
-                var writer = longTextCursor.writer();
-                for (int i = 0; i < 50; i++) {
-                    writer.write("hello, world\n".getBytes());
+                var cursorWriter = longTextCursor.writer();
+                try (var bos = new BufferedOutputStream(cursorWriter)) {
+                    for (int i = 0; i < 50; i++) {
+                        bos.write("hello, world\n".getBytes());
+                    }
                 }
-                writer.finish();
+                cursorWriter.finish();
             });
 
             // get the most recent copy of the database, like a moment
@@ -600,11 +603,11 @@ class DatabaseTest {
 
             {
                 var longTextCursor = moment.getCursor("long-text");
-                var reader = longTextCursor.reader();
-                var is = new BufferedInputStream(reader, 1024);
-                var bufr = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+                var cursorReader = longTextCursor.reader();
+                var bis = new BufferedInputStream(cursorReader);
+                var br = new BufferedReader(new InputStreamReader(bis, StandardCharsets.UTF_8));
                 int count = 0;
-                for (var it = bufr.lines().iterator(); it.hasNext();) {
+                for (var it = br.lines().iterator(); it.hasNext();) {
                     it.next();
                     count += 1;
                 }
