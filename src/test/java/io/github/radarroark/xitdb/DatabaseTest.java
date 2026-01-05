@@ -582,9 +582,12 @@ class DatabaseTest {
                 var reader = longTextCursor.reader();
                 var is = new BufferedInputStream(reader, 1024);
                 var bufr = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+                int count = 0;
                 for (var it = bufr.lines().iterator(); it.hasNext();) {
                     it.next();
+                    count += 1;
                 }
+                assertEquals(50, count);
             }
         }
 

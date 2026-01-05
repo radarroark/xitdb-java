@@ -253,13 +253,11 @@ public class ReadCursor implements Iterable<ReadCursor> {
 
         @Override
         public int read() throws IOException {
-            var buffer = new byte[1];
             try {
-                this.readFully(buffer);
+                return this.readByte();
             } catch (Database.EndOfStreamException e) {
                 return -1;
             }
-            return buffer[0];
         }
 
         @Override
@@ -267,18 +265,28 @@ public class ReadCursor implements Iterable<ReadCursor> {
             if (this.size < this.relativePosition) throw new Database.EndOfStreamException();
             this.parent.db.core.seek(this.startPosition + this.relativePosition);
             var readSize = Math.min(buffer.length, (int) (this.size - this.relativePosition));
+            if (readSize == 0) return -1;
             var reader = this.parent.db.core.reader();
             reader.readFully(buffer, 0, readSize);
             this.relativePosition += readSize;
             return readSize;
         }
 
-        public void readFully(byte[] bytes) throws IOException {
-            if (this.size < this.relativePosition || this.size - this.relativePosition < bytes.length) throw new Database.EndOfStreamException();
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            var buffer = new byte[len];
+            var readSize = this.read(buffer);
+            if (readSize == -1) return -1;
+            System.arraycopy(buffer, 0, b, off, readSize);
+            return readSize;
+        }
+
+        public void readFully(byte[] buffer) throws IOException {
+            if (this.size < this.relativePosition || this.size - this.relativePosition < buffer.length) throw new Database.EndOfStreamException();
             this.parent.db.core.seek(this.startPosition + this.relativePosition);
             var reader = this.parent.db.core.reader();
-            reader.readFully(bytes);
-            this.relativePosition += bytes.length;
+            reader.readFully(buffer);
+            this.relativePosition += buffer.length;
         }
 
         public byte readByte() throws IOException {

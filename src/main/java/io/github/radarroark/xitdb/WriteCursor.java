@@ -60,7 +60,7 @@ public class WriteCursor extends ReadCursor {
         return new Writer(this, 0, new Slot(ptrPos, Tag.BYTES), startPosition, 0);
     }
 
-    public static class Writer {
+    public static class Writer extends java.io.OutputStream {
         WriteCursor parent;
         long size;
         Slot slot;
@@ -76,6 +76,14 @@ public class WriteCursor extends ReadCursor {
             this.relativePosition = relativePosition;
         }
 
+        @Override
+        public void write(int b) throws IOException {
+            var buffer = new byte[1];
+            buffer[0] = (byte) (b & 0b1111_1111);
+            this.write(buffer);
+        }
+
+        @Override
         public void write(byte[] buffer) throws IOException {
             if (this.size < this.relativePosition) throw new Database.EndOfStreamException();
             this.parent.db.core.seek(this.startPosition + this.relativePosition);
