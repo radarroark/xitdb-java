@@ -61,7 +61,7 @@ public class RandomAccessMemory extends ByteArrayOutputStream implements DataOut
 
             if (bytesBeforeEnd < buffer.length) {
                 int bytesAfterEnd = buffer.length - bytesBeforeEnd;
-                super.write(Arrays.copyOfRange(buffer, buffer.length - bytesAfterEnd, (buffer.length - bytesAfterEnd) + buffer.length));
+                super.write(Arrays.copyOfRange(buffer, buffer.length - bytesAfterEnd, buffer.length));
             }
         } else {
             super.write(buffer);
