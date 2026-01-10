@@ -53,7 +53,13 @@ public class Database {
         this.txStart = null;
     }
 
-    public WriteCursor rootCursor() {
+    public WriteCursor rootCursor() throws IOException {
+        // if the header tag is none, try re-reading it.
+        // this may be necessary if the database was initialized on a different thread.
+        if (this.header.tag() == Tag.NONE) {
+            core.seek(0);
+            this.header = Header.read(core);
+        }
         return new WriteCursor(new SlotPointer(null, new Slot(DATABASE_START, this.header.tag)), this);
     }
 
