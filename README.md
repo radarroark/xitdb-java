@@ -336,7 +336,7 @@ The iteration of the `HashMap` looks the same with `HashSet`, `CountedHashMap`, 
 
 ## Hashing
 
-The `HashMap` and other hashing data structures will create the hash for you when you call `put` or `get` and provide the key as a `String` or a `Database.Bytes`. If you want to do the hashing yourself, there is an overload of `put` and `get` that take a `byte[]` as the key, which should be the hash that you computed.
+The hashing data structures will create the hash for you when you call methods like `put` or `getCursor` and provide the key as a `String` or a `Database.Bytes`. If you want to do the hashing yourself, there is an overload of those methods that take a `byte[]` as the key, which should be the hash that you computed.
 
 When initializing a database, you tell xitdb how to hash with the `Hasher`. If you're using SHA-1, it will look like this:
 
@@ -345,10 +345,11 @@ try (var raf = new RandomAccessFile(new File("main.db"), "rw")) {
     var core = new CoreFile(raf);
     var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
     var db = new Database(core, hasher);
+    // ...
 }
 ```
 
-If you try opening an existing database with the wrong hash size, it will return an error. If you are unsure what hash size it uses, this creates a chicken-and-egg problem. You can read the header before initializing the database like this:
+The size of the hash in bytes will be stored in the database's header. If you try opening it later with a hashing algorithm that has the wrong hash size, it will throw an exception. If you are unsure what hash size the database uses, this creates a chicken-and-egg problem. You can read the header before initializing the database like this:
 
 ```java
 core.seek(0);
