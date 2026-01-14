@@ -1288,14 +1288,29 @@ class DatabaseTest {
         // save hash id in header
         {
             var hashId = Hasher.stringToId("sha1");
-            var hasherWithHashId = new Hasher(MessageDigest.getInstance("SHA-256"), hashId);
+            var hasherWithHashId = new Hasher(MessageDigest.getInstance("SHA-1"), hashId);
 
             // make empty database
             core.setLength(0);
-            var db = new Database(core, hasherWithHashId);
+            new Database(core, hasherWithHashId);
 
-            assertEquals(hashId, db.header.hashId());
-            assertEquals("sha1", Hasher.idToString(db.header.hashId()));
+            // read header without initializing database
+            core.seek(0);
+            var header = Database.Header.read(core);
+            assertEquals(20, header.hashSize());
+            assertEquals("sha1", Hasher.idToString(header.hashId()));
+
+            // determine the hashing algorithm
+            Hasher hash = switch (Hasher.idToString(header.hashId())) {
+                case "sha1" -> new Hasher(MessageDigest.getInstance("SHA-1"), header.hashId());
+                case "sha2" -> switch (header.hashSize()) {
+                    case 32 -> new Hasher(MessageDigest.getInstance("SHA-256"), header.hashId());
+                    case 64 -> new Hasher(MessageDigest.getInstance("SHA-512"), header.hashId());
+                    default -> throw new RuntimeException("Invalid hash size");
+                };
+                default -> throw new RuntimeException("Invalid hash algorithm");
+            };
+            assertEquals("SHA-1", hash.md().getAlgorithm());
         }
 
         // array_list of hash_maps

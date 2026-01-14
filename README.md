@@ -15,6 +15,7 @@ This database was originally made for the [xit version control system](https://g
 * [Cloning and Undoing](#cloning-and-undoing)
 * [Large Byte Arrays](#large-byte-arrays)
 * [Iterators](#iterators)
+* [Hashing](#hashing)
 * [Thread Safety](#thread-safety)
 
 ## Example
@@ -330,6 +331,55 @@ while (peopleIter.hasNext()) {
 The above code iterates over `people`, which is an `ArrayList`, and for each person (which is a `HashMap`), it iterates over each of its key-value pairs.
 
 The iteration of the `HashMap` looks the same with `HashSet`, `CountedHashMap`, and `CountedHashSet`. When iterating, you call `readKeyValuePair` on the cursor and can read the `keyCursor` and `valueCursor` from it. In maps, `put` sets the key and value. In sets, `put` only sets the key; the value will always have a tag type of `NONE`.
+
+## Hashing
+
+When initializing a database, you tell xitdb how to hash with the `Hasher`. If you're using SHA-1, it will look like this:
+
+```java
+try (var raf = new RandomAccessFile(new File("main.db"), "rw")) {
+    var core = new CoreFile(raf);
+    var hasher = new Hasher(MessageDigest.getInstance("SHA-1"));
+    var db = new Database(core, hasher);
+}
+```
+
+If you try opening an existing database with the wrong hash size, it will return an error. If you are unsure what hash size it uses, this creates a chicken-and-egg problem. You can read the header before initializing the database like this:
+
+```java
+core.seek(0);
+var header = Database.Header.read(core);
+assertEquals(20, header.hashSize());
+```
+
+The hash size alone does not disambiguate hashing algorithms, though. In addition, xitdb reserves four bytes in the header that you can use to put the name of the algorithm. You must provide it in the `Hasher` constructor:
+
+```java
+var hasher = new Hasher(MessageDigest.getInstance("SHA-1"), Hasher.stringToId("sha1"));
+```
+
+The hash id is only written to the database header when it is first initialized. When you open it later, the hash id in the `Hasher` is ignored. You can read the hash id of an existing database like this:
+
+```java
+core.seek(0);
+var header = Database.Header.read(core);
+assertEquals("sha1", Hasher.idToString(header.hashId()));
+```
+
+If you want to use SHA-256, I recommend using `sha2` as the hash id. You can then distinguish between SHA-256 and SHA-512 using the hash size, like this:
+
+```java
+Hasher hasher = switch (Hasher.idToString(header.hashId())) {
+    case "sha1" -> new Hasher(MessageDigest.getInstance("SHA-1"), header.hashId());
+    case "sha2" -> switch (header.hashSize()) {
+        case 32 -> new Hasher(MessageDigest.getInstance("SHA-256"), header.hashId());
+        case 64 -> new Hasher(MessageDigest.getInstance("SHA-512"), header.hashId());
+        default -> throw new RuntimeException("Invalid hash size");
+    };
+    default -> throw new RuntimeException("Invalid hash algorithm");
+};
+assertEquals("SHA-1", hasher.md().getAlgorithm());
+```
 
 ## Thread Safety
 
