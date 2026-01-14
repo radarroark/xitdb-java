@@ -283,7 +283,9 @@ try (var bos = new BufferedOutputStream(cursorWriter)) {
 cursorWriter.finish(); // remember to call this!
 ```
 
-...and to read it incrementally, get a reader from a cursor:
+If you need to set a format tag for the byte array, put it in the `formatTag` field of the writer before you call `finish`.
+
+To read a byte array incrementally, get a reader from a cursor:
 
 ```java
 var longTextCursor = moment.getCursor("long-text");
@@ -333,6 +335,8 @@ The above code iterates over `people`, which is an `ArrayList`, and for each per
 The iteration of the `HashMap` looks the same with `HashSet`, `CountedHashMap`, and `CountedHashSet`. When iterating, you call `readKeyValuePair` on the cursor and can read the `keyCursor` and `valueCursor` from it. In maps, `put` sets the key and value. In sets, `put` only sets the key; the value will always have a tag type of `NONE`.
 
 ## Hashing
+
+The `HashMap` and other hashing data structures will create the hash for you when you call `put` or `get` and provide the key as a `String` or a `Database.Bytes`. If you want to do the hashing yourself, there is an overload of `put` and `get` that take a `byte[]` as the key, which should be the hash that you computed.
 
 When initializing a database, you tell xitdb how to hash with the `Hasher`. If you're using SHA-1, it will look like this:
 
