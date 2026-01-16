@@ -858,6 +858,8 @@ class DatabaseTest {
         {
             var history = new WriteArrayList(db.rootCursor());
 
+            var historyIndex = history.count() - 1;
+
             history.appendContext(history.getSlot(-1), (cursor) -> {
                 var moment = new WriteHashMap(cursor);
 
@@ -890,7 +892,7 @@ class DatabaseTest {
             assertEquals(4, bigCities.count());
 
             // revert that change
-            history.append(history.getSlot(-2));
+            history.append(history.getSlot(historyIndex));
         }
 
         // preventing accidental mutation with freezing

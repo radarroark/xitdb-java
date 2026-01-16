@@ -187,7 +187,13 @@ var fruits = new ReadArrayList(fruitsCursor);
 assertEquals(3, fruits.count());
 ```
 
-There's one catch, though. If we try cloning a data structure that was created in the same transaction, it doesn't seem to work:
+Before we continue, let's save the latest history index, so we can revert back to this moment of the database later:
+
+```java
+var historyIndex = history.count() - 1;
+```
+
+There's one catch you'll run into when cloning. If we try cloning a data structure that was created in the same transaction, it doesn't seem to work:
 
 ```java
 history.appendContext(history.getSlot(-1), (cursor) -> {
@@ -224,10 +230,10 @@ assertEquals(4, bigCities.count());
 
 The reason that `big-cities` was mutated is because all data in a given transaction is temporarily mutable. This is a very important optimization, but in this case, it's not what we want.
 
-To show how to fix this, let's first undo the transaction we just made. Here we add a new value to the history that uses the slot from two transactions ago, which effectively reverts the last transaction:
+To show how to fix this, let's first undo the transaction we just made. Here we use the `historyIndex` we saved before to revert back to the older database moment:
 
 ```java
-history.append(history.getSlot(-2));
+history.append(history.getSlot(historyIndex));
 ```
 
 This time, after making the "big cities" list, we call `freeze`, which tells xitdb to consider all data made so far in the transaction to be immutable. After that, we can clone it into the "cities" list and it will work the way we wanted:
