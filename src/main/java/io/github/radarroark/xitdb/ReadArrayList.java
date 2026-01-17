@@ -2,7 +2,7 @@ package io.github.radarroark.xitdb;
 
 import java.io.IOException;
 
-public class ReadArrayList implements Iterable<ReadCursor> {
+public class ReadArrayList implements Slotted, Iterable<ReadCursor> {
     public ReadCursor cursor;
 
     public ReadArrayList(ReadCursor cursor) {
@@ -14,6 +14,7 @@ public class ReadArrayList implements Iterable<ReadCursor> {
         }
     }
 
+    @Override
     public Slot slot() {
         return cursor.slot();
     }
@@ -22,6 +23,7 @@ public class ReadArrayList implements Iterable<ReadCursor> {
         return this.cursor.count();
     }
 
+    @Override
     public ReadCursor.Iterator iterator() {
         return this.cursor.iterator();
     }

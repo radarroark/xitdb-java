@@ -1,6 +1,6 @@
 package io.github.radarroark.xitdb;
 
-public class ReadHashMap implements Iterable<ReadCursor> {
+public class ReadHashMap implements Slotted, Iterable<ReadCursor> {
     public ReadCursor cursor;
 
     protected ReadHashMap() {
@@ -15,10 +15,12 @@ public class ReadHashMap implements Iterable<ReadCursor> {
         }
     }
 
+    @Override
     public Slot slot() {
         return cursor.slot();
     }
 
+    @Override
     public ReadCursor.Iterator iterator() {
         return this.cursor.iterator();
     }

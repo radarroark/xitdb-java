@@ -5,7 +5,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Stack;
 
-public class ReadCursor implements Iterable<ReadCursor> {
+public class ReadCursor implements Slotted, Iterable<ReadCursor> {
     public SlotPointer slotPtr;
     public Database db;
 
@@ -14,6 +14,7 @@ public class ReadCursor implements Iterable<ReadCursor> {
         this.db = db;
     }
 
+    @Override
     public Slot slot() {
         return this.slotPtr.slot();
     }
