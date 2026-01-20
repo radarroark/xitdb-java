@@ -1,11 +1,19 @@
-xitdb is an immutable database written in Java. It is available [on Clojars](https://clojars.org/io.github.radarroark/xitdb).
+<p align="center">
+  xitdb is an immutable database written in Java
+  <br/>
+  <br/>
+  <b>Choose your flavor:</b>
+  <a href="https://github.com/radarroark/xitdb">Zig</a> |
+  <a href="https://github.com/radarroark/xitdb-java">Java</a> |
+  <a href="https://github.com/codeboost/xitdb-clj">Clojure</a> |
+  <a href="https://github.com/radarroark/xitdb-ts">TypeScript</a>
+</p>
 
 * Each transaction efficiently creates a new "copy" of the database, and past copies can still be read from.
 * It supports writing to a file as well as purely in-memory use.
 * No query engine of any kind. You just write data structures (primarily an `ArrayList` and `HashMap`) that can be nested arbitrarily.
 * No dependencies besides the Java standard library (currently requires Java 17).
-* This project is a port of the [original Zig version](https://github.com/radarroark/xitdb).
-* To use it from Clojure, see [xitdb-clj](https://github.com/codeboost/xitdb-clj) for a nice wrapper library.
+* It is available [on Clojars](https://clojars.org/io.github.radarroark/xitdb).
 
 This database was originally made for the [xit version control system](https://github.com/radarroark/xit), but I bet it has a lot of potential for other projects. The combination of being immutable and having an API similar to in-memory data structures is pretty powerful. Consider using it [instead of SQLite](https://gist.github.com/radarroark/03a0724484e1111ef4c05d72a935c42c) for your Java projects: it's simpler, it's pure Java, and it creates no impedance mismatch with your program the way SQL databases do.
 
