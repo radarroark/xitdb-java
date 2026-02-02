@@ -3,10 +3,10 @@
   <br/>
   <br/>
   <b>Choose your flavor:</b>
-  <a href="https://github.com/radarroark/xitdb">Zig</a> |
-  <a href="https://github.com/radarroark/xitdb-java">Java</a> |
+  <a href="https://github.com/xit-vcs/xitdb">Zig</a> |
+  <a href="https://github.com/xit-vcs/xitdb-java">Java</a> |
   <a href="https://github.com/codeboost/xitdb-clj">Clojure</a> |
-  <a href="https://github.com/radarroark/xitdb-ts">TypeScript</a>
+  <a href="https://github.com/xit-vcs/xitdb-ts">TypeScript</a>
 </p>
 
 * Each transaction efficiently creates a new "copy" of the database, and past copies can still be read from.
@@ -15,7 +15,7 @@
 * No dependencies besides the Java standard library (currently requires Java 17).
 * It is available [on Clojars](https://clojars.org/io.github.radarroark/xitdb).
 
-This database was originally made for the [xit version control system](https://github.com/radarroark/xit), but I bet it has a lot of potential for other projects. The combination of being immutable and having an API similar to in-memory data structures is pretty powerful. Consider using it [instead of SQLite](https://gist.github.com/radarroark/03a0724484e1111ef4c05d72a935c42c) for your Java projects: it's simpler, it's pure Java, and it creates no impedance mismatch with your program the way SQL databases do.
+This database was originally made for the [xit version control system](https://github.com/xit-vcs/xit), but I bet it has a lot of potential for other projects. The combination of being immutable and having an API similar to in-memory data structures is pretty powerful. Consider using it [instead of SQLite](https://gist.github.com/radarroark/03a0724484e1111ef4c05d72a935c42c) for your Java projects: it's simpler, it's pure Java, and it creates no impedance mismatch with your program the way SQL databases do.
 
 * [Example](#example)
 * [Initializing a Database](#initializing-a-database)
@@ -402,4 +402,4 @@ assertEquals("SHA-1", hasher.md().getAlgorithm());
 
 ## Thread Safety
 
-It is possible to read the database from multiple threads without locks, even while writes are happening. This is a big benefit of immutable databases. However, each thread needs to use its own `Database` instance. You can do this by creating a `ThreadLocal`. See [the multithreading test](https://github.com/radarroark/xitdb-java/blob/d7cf0869cf0f66eca823051dfbdec0ab5e5a09cb/src/test/java/io/github/radarroark/xitdb/DatabaseTest.java#L201) for an example of this. Also, keep in mind that writes still need to come from one thread at a time.
+It is possible to read the database from multiple threads without locks, even while writes are happening. This is a big benefit of immutable databases. However, each thread needs to use its own `Database` instance. You can do this by creating a `ThreadLocal`. See [the multithreading test](https://github.com/xit-vcs/xitdb-java/blob/d7cf0869cf0f66eca823051dfbdec0ab5e5a09cb/src/test/java/io/github/radarroark/xitdb/DatabaseTest.java#L201) for an example of this. Also, keep in mind that writes still need to come from one thread at a time.
